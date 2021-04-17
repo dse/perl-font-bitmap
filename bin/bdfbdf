@@ -1,0 +1,71 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+use v5.10.0;
+use utf8;
+
+#------------------------------------------------------------------------------
+use File::Basename qw(basename);
+our $PROGNAME = basename($0);
+
+#------------------------------------------------------------------------------
+use open IO => qw(:locale);
+use Encode::Locale;
+use Encode qw(decode);
+BEGIN {
+    @ARGV = map { decode('locale', $_, Encode::FB_CROAK) } @ARGV;
+}
+
+#------------------------------------------------------------------------------
+our $assume = 0;
+our $resolutionX;
+our $resolutionY;
+
+#------------------------------------------------------------------------------
+use Getopt::Long;
+Getopt::Long::Configure('bundling', 'gnu_compat', 'no_ignore_case');
+Getopt::Long::GetOptions(
+    'a|assume'         => \$assume,
+    'h|help'           => sub { usage(); exit(0); },
+    'r|resolution=f'   => sub { $resolutionX = $resolutionY = $_[1]; },
+    'x|resolution-x=f' => \$resolutionX,
+    'y|resolution-y=f' => \$resolutionY,
+) or die("Type '$PROGNAME --help' for help.\n");
+
+sub usage { print(<<"END"); }
+usage:
+    $PROGNAME [<option> ...] [<filename> ...]
+options:
+    -h, --help
+    -a, --assume
+    -r, --resolution=<float>        nominally, DPI
+    -x, --resolution-x=<float>
+    -y, --resolution-y=<float>
+END
+
+#------------------------------------------------------------------------------
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Font::Bitmap::BDF::Parser;
+
+#------------------------------------------------------------------------------
+my $parser = Font::Bitmap::BDF::Parser->new();
+
+if (defined $resolutionX && defined $resolutionY) {
+    $parser->resolution($resolutionX, $resolutionY);
+} elsif ($assume) {
+    $parser->resolution(75);
+}
+
+while (<>) {
+    $parser->filename($ARGV) if !defined $parser->filename;
+    $parser->parseLine($_);
+}
+$parser->eof();
+
+$parser->font->fix();
+$parser->font->assumePixelSize() if $assume;
+$parser->font->assumeSDWidths() if $assume;
+$parser->font->fixSDWidths();
+
+print $parser->font->toString();

@@ -1,0 +1,11 @@
+-   BDF font information
+    -   `SIZE <pointSize> <xRes> <yRes>`
+        -   `<pointSize>` is the font size in points
+        -   `<xRes>` and `<yRes>` are in dots per inch
+    -   `FONTBOUNDINGBOX <x> <y> <xOffset> <yOffset>`
+        -   all are integer pixel values
+-   BDF properties
+    -   `PIXEL_SIZE` is the body size of the font at a particular `POINT_SIZE` and `RESOLUTION_Y`.
+    -   `POINT_SIZE` is the body size for which the font was designed, in decipoints.
+    -   `RESOLUTION_X` and `RESOLUTION_Y` are in dots per inch.
+    -   
