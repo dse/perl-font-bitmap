@@ -2,6 +2,126 @@ package Font::Bitmap::BDF::Parser;
 use warnings;
 use strict;
 
+=head1 NAME
+
+Font::Bitmap::BDF::Parser - parse a BDF file and build a Font::Bitmap::BDF object
+
+=head1 SYNOPSIS
+
+    $fh = ...;
+    my $parser = Font::Bitmap::BDF::Parser->new();
+    while (<$fh>) {
+        $parser->parseLine($_);
+    }
+    $parser->eof();
+
+    my $bdf = $parser->font;
+    ...
+
+=head1 DESCRIPTION
+
+Parses the contents of an Adobe Bitmap Distribution Format file, line
+by line.
+
+Builds a Font::Bitmap::BDF object from it.
+
+=head1 FORMAT EXTENSIONS
+
+By default, certain extensions to BDF that facilitate the use of a
+text editor are enabled.
+
+=over 4
+
+=item *
+
+STARTCHAR
+
+Normally the word STARTCHAR is followed by the glyph's name, in the
+form of either one of the glyph names listed in the Adobe Glyph List
+for New Fonts, or for Type 0 fonts, a numeric offset or glyph ID.
+
+In order to facilitate editing, you may also follow STARTCHAR with a
+glyph's Unicode codepoint in a hexadecimal format per one of the
+following examples:
+
+    STARTCHAR U+0031 <text>
+
+    STARTCHAR 0x31 <text>
+
+The contents of any additional text following the hexadecimal
+codepoint are ignored.  You may use it to specify the character name,
+but that is entirely an optional convention.
+
+=item *
+
+BITMAP
+
+Normally each glyph's bitmap data is specified in the form of a
+"BITMAP" line, followed by one or more lines containing hexademical
+data, followed by an "ENDCHAR" line.
+
+You can instead specify something like the following example:
+
+    STARTCHAR U+006A LATIN SMALL LETTER J
+    |    #  |
+    |       |
+    |   ##  |
+    |    #  |
+    |    #  |
+    |    #  |
+    + #  #  |
+    |  ##   |
+    ENDCHAR
+
+Each line starts with a "|" or "+", followed by a series of spaces
+or number signs ("#"), followed optionally by an "|" or "+".
+
+Spaces are for pixels turned off, number signs ("#") are for pixels
+turned on.  You may also use asterisks ("*") for pixels turned on.
+
+A line starting "+" indicates that the bottom of its line of pixels is
+the font's baseline.  In the above example, only the last line of
+pixels is below the base line; the second-to-last row of pixels and
+all preceding rows are above the baseline.
+
+If there are any pixels to the left of the origin, as in the following
+example:
+
+    |      ###|
+    |      ###|
+    |      ###|
+    |         |
+    |     ### |
+    |     ### |
+    |     ### |
+    |    ###  |
+    |    ###  |
+    |    ###  |
+    |    ###  |
+    |    ###  |
+    |   ###   |
+    +   ###   | <-- above the origin
+    |   ###   | <-- below the origin
+    |  ####   |
+    | *###    |
+    |**##     |
+    |**#      |
+    |--+------|
+
+Add a line like the last line in the example above.  You may place it
+above or below the bitmap data.  The COLUMN of pixels corresponding to
+the "+" sign corresponds to the column on the right-hand side of the
+origin; any preceding columns are to the left of the origin (shown as
+"*" above).
+
+=back
+
+=head1 BUGS
+
+Does not support vertical writing mode.
+
+=cut
+
 use Moo;
 
 has state => (is => 'rw', default => 0);
@@ -49,6 +169,8 @@ sub parseLine {
     $self->lineNumber($self->lineNumber + 1);
     $line =~ s{\R\z}{};         # safer than chomp.
     if ($line =~ m{^\s*include\s+(?<filename>\S.*?)\s*$}xi) {
+        # include <filename>
+        #     at any point includes the contents of <filename>
         $self->include($+{filename});
     } elsif ($self->state == 0) {
         $self->parseLineState0($line);
@@ -88,6 +210,8 @@ sub include {
     }
 }
 
+# while reading main BDF data
+#
 sub parseLineState0 {
     my ($self, $line) = @_;
     if ($line =~ m{^\s* STARTFONT
@@ -163,6 +287,9 @@ sub parseLineState0 {
     }
 }
 
+# while reading bdf property data between STARTPROPERTIES and
+# ENDPROPERTIES lines
+#
 sub parseLineState1 {
     my ($self, $line) = @_;
     if ($line =~ m{^\s* ENDPROPERTIES $RE{endWord}}xi) {
@@ -176,6 +303,9 @@ sub parseLineState1 {
     }
 }
 
+# while in the character data section of the BDF file but not
+# yet reading a character.
+#
 sub parseLineState2 {
     my ($self, $line) = @_;
     if ($line =~ m{^\s* STARTCHAR
@@ -191,6 +321,8 @@ sub parseLineState2 {
     }
 }
 
+# while reading info for a glyph
+#
 sub parseLineState3 {
     my ($self, $line) = @_;
     if ($line =~ m{^\s* ENCODING
@@ -258,6 +390,8 @@ sub parseLineState3 {
     }
 }
 
+# while reading glyph bitmap data
+#
 sub parseLineState4 {
     my ($self, $line) = @_;
     if ($line =~ m{^\s* ENDCHAR $RE{endWord}}xi) {
@@ -271,6 +405,13 @@ sub parseLineState4 {
             format => 'hex',
             hex    => $+{data}
         });
+    } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*
+                        \|
+                        (?<negativeLeftOffset>-*)\+-*
+                        \|?
+                        \s*$}xi) {
+        $self->glyph->negativeLeftOffset(length($+{negativeLeftOffset}));
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
                         (?<startMarker>[+|])
