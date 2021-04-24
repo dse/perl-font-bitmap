@@ -135,6 +135,7 @@ has glyph => (is => 'rw');
 has lineNumber => (is => 'rw', default => 0);
 has enableExtensions => (is => 'rw', default => 1);
 has filename => (is => 'rw');
+has verbose => (is => 'rw', default => 0);
 
 has xResolution => (is => 'rw');
 has yResolution => (is => 'rw');
@@ -168,6 +169,11 @@ sub parseLine {
     my ($self, $line) = @_;
     $self->lineNumber($self->lineNumber + 1);
     $line =~ s{\R\z}{};         # safer than chomp.
+
+    if ($self->verbose) {
+        printf("%-7d %s\n", $self->state, $line);
+    }
+
     if ($line =~ m{^\s*include\s+(?<filename>\S.*?)\s*$}xi) {
         # include <filename>
         #     at any point includes the contents of <filename>
