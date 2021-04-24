@@ -28,9 +28,14 @@ has boundingBoxOffsetY => (is => 'rw'); # integer pixels
 
 has bitmapData => (is => 'rw', default => sub { return []; });
 
+# if non-zero, either negative or positive, there are pixels
+# to the left of zero.
+has negativeLeftOffset => (is => 'rw', default => 0);
+
 has font => (is => 'rw');
 
 use Font::Bitmap::BDF::AdobeGlyphListForNewFonts qw(adobeGlyphName);
+use Font::Bitmap::BDF::Constants qw(:all);
 
 use POSIX qw(round);
 use List::Util qw(max);
@@ -50,7 +55,14 @@ sub finalize {
     $self->finalizeHex();
     $self->finalizeIndexes();
     $self->finalizeBoundingBox();
-    if ($self->name =~ m{^\s*U\+(?<codepoint>[[:xdigit:]]+)}xi) {
+    $self->finalizeWidth();
+    $self->finalizeHeight();
+    $self->finalizeEncoding();
+}
+
+sub finalizeEncoding {
+    my ($self) = @_;
+    if ($self->name =~ m{^\s*(?:U\+|0x)(?<codepoint>[[:xdigit:]]+)}xi) {
         if (!defined $self->encoding) {
             $self->encoding(hex($+{codepoint}));
         }
@@ -96,6 +108,7 @@ sub finalizeIndexes {
 
 sub finalizeBoundingBox {
     my ($self) = @_;
+
     if (!defined $self->boundingBoxHeight) {
         $self->boundingBoxHeight(scalar @{$self->bitmapData});
     }
@@ -111,6 +124,8 @@ sub finalizeBoundingBox {
         }
         if (defined $baselineIndex) {
             $self->boundingBoxOffsetY((scalar(@{$self->bitmapData}) - $baselineIndex - 1) * -1);
+        } else {
+            $self->boundingBoxOffsetY(0);
         }
     }
     if (!defined $self->boundingBoxWidth) {
@@ -125,7 +140,44 @@ sub finalizeBoundingBox {
         $self->boundingBoxWidth($width);
     }
     if (!defined $self->boundingBoxOffsetX) {
-        $self->boundingBoxOffsetX(0);
+        $self->boundingBoxOffsetX(-1 * abs($self->negativeLeftOffset));
+    }
+
+    while (scalar @{$self->bitmapData} &&
+           $self->bitmapData->[-1]->{hex} =~ m{^0+$}) {
+        splice(@{$self->bitmapData}, -1, 1);
+        $self->boundingBoxOffsetY($self->boundingBoxOffsetY + 1);
+        $self->boundingBoxHeight($self->boundingBoxHeight - 1);
+    }
+}
+
+sub finalizeWidth {
+    my ($self) = @_;
+    if (defined $self->sWidthX && defined $self->dWidthX) {
+        return;
+    }
+    if (defined $self->sWidthX) {
+        $self->dWidthX(round($self->sWidthX * $self->font->pointSize / 1000 * $self->font->xResolution / POINTS_PER_INCH));
+    } elsif (defined $self->dWidthX) {
+        $self->sWidthX(round($self->dWidthX * 1000 / $self->font->pointSize * POINTS_PER_INCH / $self->font->xResolution));
+    } else {
+        $self->dWidthX($self->boundingBoxWidth);
+        $self->sWidthX(round($self->dWidthX * 1000 / $self->font->pointSize * POINTS_PER_INCH / $self->font->xResolution));
+    }
+}
+
+sub finalizeHeight {
+    my ($self) = @_;
+    if (defined $self->sWidthY && defined $self->dWidthY) {
+        return;
+    }
+    if (defined $self->sWidthY) {
+        $self->dWidthY(round($self->sWidthY * $self->font->pointSize / 1000 * $self->font->yResolution / POINTS_PER_INCH));
+    } elsif (defined $self->dWidthY) {
+        $self->sWidthY(round($self->dWidthY * 1000 / $self->font->pointSize * POINTS_PER_INCH / $self->font->yResolution));
+    } else {
+        $self->dWidthY(0);     # assuming horizontal writing mode
+        $self->sWidthY(0);
     }
 }
 
@@ -164,7 +216,8 @@ sub toString {
         $result .= sprintf("VVECTOR %d %d\n", round($self->vVectorX), round($self->vVectorY));
     }
     $result .= "BITMAP\n";
-    foreach my $data (@{$self->bitmapData}) {
+    for (my $i = 0; $i < $self->boundingBoxHeight; $i += 1) {
+        my $data = $self->bitmapData->[$i];
         if (defined $data->{hex}) {
             $result .= sprintf("%s\n", uc $data->{hex});
         }
@@ -195,22 +248,22 @@ sub fixSDWidths {
     my $p = $self->font->pointSize;
     if (!defined $self->dWidthX && defined $self->sWidthX) {
         if (defined $rx && defined $p) {
-            $self->dWidthX($self->sWidthX * $p / 1000 * $rx / 72);
+            $self->dWidthX($self->sWidthX * $p / 1000 * $rx / POINTS_PER_INCH);
         }
     }
     if (!defined $self->dWidthY && defined $self->sWidthY) {
         if (defined $ry && defined $p) {
-            $self->dWidthY($self->sWidthY * $p / 1000 * $ry / 72);
+            $self->dWidthY($self->sWidthY * $p / 1000 * $ry / POINTS_PER_INCH);
         }
     }
     if (!defined $self->sWidthX && defined $self->dWidthX) {
         if (defined $rx && defined $p) {
-            $self->sWidthX($self->dWidthX * 1000 / $p * 72 / $rx);
+            $self->sWidthX($self->dWidthX * 1000 / $p * POINTS_PER_INCH / $rx);
         }
     }
     if (!defined $self->sWidthY && defined $self->dWidthY) {
         if (defined $rx && defined $p) {
-            $self->sWidthY($self->dWidthY * 1000 / $p * 72 / $ry);
+            $self->sWidthY($self->dWidthY * 1000 / $p * POINTS_PER_INCH / $ry);
         }
     }
 }
