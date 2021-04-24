@@ -38,7 +38,7 @@ use Font::Bitmap::BDF::AdobeGlyphListForNewFonts qw(adobeGlyphName);
 use Font::Bitmap::BDF::Constants qw(:all);
 
 use POSIX qw(round);
-use List::Util qw(max);
+use List::Util qw(max all min);
 
 sub appendBitmapData {
     my ($self, $data) = @_;
@@ -58,6 +58,11 @@ sub finalize {
     $self->finalizeWidth();
     $self->finalizeHeight();
     $self->finalizeEncoding();
+
+    # not strictly necessary
+    $self->trimEmptyLinesFromBottom();
+    $self->trimEmptyLinesFromTop();
+    $self->trimEmptyColumns();
 }
 
 sub finalizeEncoding {
@@ -142,13 +147,62 @@ sub finalizeBoundingBox {
     if (!defined $self->boundingBoxOffsetX) {
         $self->boundingBoxOffsetX(-1 * abs($self->negativeLeftOffset));
     }
+}
 
+sub trimEmptyLinesFromBottom {
+    my ($self) = @_;
     while (scalar @{$self->bitmapData} &&
            $self->bitmapData->[-1]->{hex} =~ m{^0+$}) {
-        splice(@{$self->bitmapData}, -1, 1);
+        pop(@{$self->bitmapData});
         $self->boundingBoxOffsetY($self->boundingBoxOffsetY + 1);
         $self->boundingBoxHeight($self->boundingBoxHeight - 1);
     }
+}
+
+sub trimEmptyLinesFromTop {
+    my ($self) = @_;
+    while (scalar @{$self->bitmapData} &&
+           $self->bitmapData->[0]->{hex} =~ m{^0+$}) {
+        shift(@{$self->bitmapData});
+        $self->boundingBoxHeight($self->boundingBoxHeight - 1);
+    }
+}
+
+sub trimEmptyColumns {
+    my ($self) = @_;
+    foreach my $data (@{$self->bitmapData}) {
+        $data->{bin} = unpack('B*', pack('H*', $data->{hex}));
+    }
+    $self->trimEmptyColumnsFromLeft();
+    $self->trimEmptyColumnsFromRight();
+    foreach my $data (@{$self->bitmapData}) {
+        $data->{hex} = unpack('H*', pack('B*', $data->{bin}));
+    }
+}
+
+sub trimEmptyColumnsFromLeft {
+    my ($self) = @_;
+    my @shifts = map { $_->{bin} =~ m{^(0+)} ? length($1) : 0 } @{$self->bitmapData};
+    my $shift = min(@shifts);
+    if ($shift) {
+        foreach my $data (@{$self->bitmapData}) {
+            $data->{bin} = substr($data->{bin}, $shift);
+        }
+        $self->boundingBoxOffsetX($self->boundingBoxOffsetX + $shift);
+        $self->boundingBoxWidth($self->boundingBoxWidth - $shift);
+    }
+}
+
+sub trimEmptyColumnsFromRight {
+    my ($self) = @_;
+    foreach my $data (@{$self->bitmapData}) {
+        $data->{bin} =~ s{0+$}{};
+    }
+    my $length = max( map { length($_->{bin}) } @{$self->bitmapData});
+    foreach my $data (@{$self->bitmapData}) {
+        $data->{bin} .= '0' x ($length - length($data->{bin}));
+    }
+    $self->boundingBoxWidth($length);
 }
 
 sub finalizeWidth {
