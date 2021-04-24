@@ -20,11 +20,13 @@ BEGIN {
 our $assume = 0;
 our $resolutionX;
 our $resolutionY;
+our $verbose = 0;
 
 #------------------------------------------------------------------------------
 use Getopt::Long;
 Getopt::Long::Configure('bundling', 'gnu_compat', 'no_ignore_case');
 Getopt::Long::GetOptions(
+    'v|verbose+'       => \$verbose,
     'a|assume'         => \$assume,
     'h|help'           => sub { usage(); exit(0); },
     'r|resolution=f'   => sub { $resolutionX = $resolutionY = $_[1]; },
@@ -50,6 +52,7 @@ use Font::Bitmap::BDF::Parser;
 
 #------------------------------------------------------------------------------
 my $parser = Font::Bitmap::BDF::Parser->new();
+$parser->verbose($verbose);
 
 if (defined $resolutionX && defined $resolutionY) {
     $parser->resolution($resolutionX, $resolutionY);
