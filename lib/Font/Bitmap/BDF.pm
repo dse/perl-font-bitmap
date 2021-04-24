@@ -90,8 +90,8 @@ sub finalize {
 
 sub fix {
     my ($self) = @_;
-    $self->fixResolution();
-    $self->fixPixelAndPointSizes();
+    $self->matchResolutions();
+    $self->matchPixelAndPointSizes();
     $self->fixAscentDescent();
     $self->fixFromXLFDName();
     foreach my $glyph (@{$self->glyphs}) {
@@ -145,7 +145,7 @@ sub fixAscentDescent {
     }
 }
 
-sub fixResolution {
+sub matchResolutions {
     my ($self) = @_;
     if (!defined $self->xResolution && defined $self->xResolution2) {
         $self->xResolution($self->xResolution2)
@@ -161,7 +161,7 @@ sub fixResolution {
     }
 }
 
-sub fixPixelAndPointSizes {
+sub matchPixelAndPointSizes {
     my ($self) = @_;
     if (!defined $self->pointSize && defined $self->pointSize2) {
         $self->pointSize($self->pointSize2);
