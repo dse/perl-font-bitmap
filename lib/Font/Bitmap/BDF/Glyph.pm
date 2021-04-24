@@ -58,8 +58,10 @@ sub finalize {
     $self->finalizeWidth();
     $self->finalizeHeight();
     $self->finalizeEncoding();
+}
 
-    # not strictly necessary
+sub trim {
+    my ($self) = @_;
     $self->trimEmptyLinesFromBottom();
     $self->trimEmptyLinesFromTop();
     $self->trimEmptyColumns();
@@ -80,16 +82,16 @@ sub finalizeEncoding {
 sub finalizeHex {
     my ($self) = @_;
     foreach my $data (@{$self->bitmapData}) {
-        if ($data->{format} eq 'dots') {
-            my $dots = $data->{dots};
+        if ($data->{format} eq 'pixels') {
+            my $pixels = $data->{pixels};
             my $hex  = $data->{hex};
-            if (defined $dots && !defined $hex) {
-                $dots =~ s{\S}{1}g;
-                $dots =~ s{\s}{0}g;
-                if (length($dots) % 4 != 0) {
-                    $dots .= '0' x (4 - length($dots) % 4);
+            if (defined $pixels && !defined $hex) {
+                $pixels =~ s{\S}{1}g;
+                $pixels =~ s{\s}{0}g;
+                if (length($pixels) % 4 != 0) {
+                    $pixels .= '0' x (4 - length($pixels) % 4);
                 }
-                $hex = uc unpack('H*', pack('B*', $dots));
+                $hex = uc unpack('H*', pack('B*', $pixels));
                 $data->{hex} = $hex;
             }
         } elsif ($data->{format} eq 'hex') {
@@ -136,8 +138,8 @@ sub finalizeBoundingBox {
     if (!defined $self->boundingBoxWidth) {
         my $width = 0;
         foreach my $data (@{$self->bitmapData}) {
-            if ($data->{format} eq 'dots') {
-                $width = max($width, length($data->{dots}));
+            if ($data->{format} eq 'pixels') {
+                $width = max($width, length($data->{pixels}));
             } elsif ($data->{format} eq 'hex') {
                 $width = max($width, 4 * length($data->{hex}));
             }
@@ -151,8 +153,7 @@ sub finalizeBoundingBox {
 
 sub trimEmptyLinesFromBottom {
     my ($self) = @_;
-    while (scalar @{$self->bitmapData} &&
-           $self->bitmapData->[-1]->{hex} =~ m{^0+$}) {
+    while (scalar @{$self->bitmapData} && $self->bitmapData->[-1]->{hex} =~ m{^0+$}) {
         pop(@{$self->bitmapData});
         $self->boundingBoxOffsetY($self->boundingBoxOffsetY + 1);
         $self->boundingBoxHeight($self->boundingBoxHeight - 1);
@@ -210,13 +211,17 @@ sub finalizeWidth {
     if (defined $self->sWidthX && defined $self->dWidthX) {
         return;
     }
-    if (defined $self->sWidthX) {
-        $self->dWidthX(round($self->sWidthX * $self->font->pointSize / 1000 * $self->font->xResolution / POINTS_PER_INCH));
-    } elsif (defined $self->dWidthX) {
-        $self->sWidthX(round($self->dWidthX * 1000 / $self->font->pointSize * POINTS_PER_INCH / $self->font->xResolution));
-    } else {
-        $self->dWidthX($self->boundingBoxWidth);
-        $self->sWidthX(round($self->dWidthX * 1000 / $self->font->pointSize * POINTS_PER_INCH / $self->font->xResolution));
+    my $pointSize = $self->font->pointSize // 0;
+    my $xResolution = $self->font->xResolution // 0;
+    if ($pointSize && $xResolution) {
+        if (defined $self->sWidthX) {
+            $self->dWidthX(round($self->sWidthX * $pointSize / 1000 * $xResolution / POINTS_PER_INCH));
+        } elsif (defined $self->dWidthX) {
+            $self->sWidthX(round($self->dWidthX * 1000 / $pointSize * POINTS_PER_INCH / $xResolution));
+        } else {
+            $self->dWidthX($self->boundingBoxWidth);
+            $self->sWidthX(round($self->dWidthX * 1000 / $pointSize * POINTS_PER_INCH / $xResolution));
+        }
     }
 }
 
@@ -270,8 +275,7 @@ sub toString {
         $result .= sprintf("VVECTOR %d %d\n", round($self->vVectorX), round($self->vVectorY));
     }
     $result .= "BITMAP\n";
-    for (my $i = 0; $i < $self->boundingBoxHeight; $i += 1) {
-        my $data = $self->bitmapData->[$i];
+    foreach my $data (@{$self->bitmapData}) {
         if (defined $data->{hex}) {
             $result .= sprintf("%s\n", uc $data->{hex});
         }
@@ -280,22 +284,20 @@ sub toString {
     return $result;
 }
 
-sub assumeSDWidths {
+# DO NOT RUN AFTER MODIFYING BOUNDING BOX
+sub guessSDWidths {
     my ($self) = @_;
     if (defined $self->boundingBoxWidth && defined $self->boundingBoxOffsetX) {
         if (!defined $self->dWidthX) {
             $self->dWidthX($self->boundingBoxWidth + $self->boundingBoxOffsetX);
-            $self->dWidthY(0) if !defined $self->dWidthY;
+        }
+        if (!defined $self->dWidthY) {
+            $self->dWidthY(0);
         }
     }
 }
 
-sub fix {
-    my ($self) = @_;
-    # placeholder
-}
-
-sub fixSDWidths {
+sub matchSDWidths {
     my ($self) = @_;
     my $rx = $self->font->xResolution;
     my $ry = $self->font->yResolution;
@@ -320,6 +322,11 @@ sub fixSDWidths {
             $self->sWidthY($self->dWidthY * 1000 / $p * POINTS_PER_INCH / $ry);
         }
     }
+}
+
+sub fix {
+    my ($self) = @_;
+    # placeholder
 }
 
 1;
