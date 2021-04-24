@@ -69,6 +69,7 @@ has xlfdProperties => (
 
 use Font::Bitmap::BDF::Properties;
 use Font::Bitmap::BDF::Glyph;
+use Font::Bitmap::BDF::Constants qw(:all);
 
 use POSIX qw(round);
 use Scalar::Util qw(looks_like_number);
@@ -413,13 +414,13 @@ sub pixelSize {
     if (!scalar @_) {
         return if !defined $self->pointSize;
         return if !defined $self->yResolution;
-        return $self->pointSize / 72 * $self->yResolution;
+        return $self->pointSize / POINTS_PER_INCH * $self->yResolution;
     }
     if (!defined $self->yResolution) {
         die("setting pixelSize not supported unless yResolution is set\n");
     }
     my $value = shift;
-    $value = $value * 72 / $self->yResolution;
+    $value = $value * POINTS_PER_INCH / $self->yResolution;
     $self->pointSize($value);
 }
 
