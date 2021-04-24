@@ -131,15 +131,15 @@ sub fixAscentDescent {
     my ($self) = @_;
     if (defined $self->ascent && defined $self->descent) {
         my $height = $self->ascent + $self->descent;
-        if (!defined $self->pixelSize2) {
-            $self->pixelSize2($height);
+        if (!defined $self->pixelSizeProperty) {
+            $self->pixelSizeProperty($height);
         }
-        if ($height == $self->pixelSize2) {
-            if (!defined $self->ascent2) {
-                $self->ascent2($self->ascent);
+        if ($height == $self->pixelSizeProperty) {
+            if (!defined $self->ascentProperty) {
+                $self->ascentProperty($self->ascent);
             }
-            if (!defined $self->descent2) {
-                $self->descent2($self->descent);
+            if (!defined $self->descentProperty) {
+                $self->descentProperty($self->descent);
             }
         }
     }
@@ -147,33 +147,33 @@ sub fixAscentDescent {
 
 sub matchResolutions {
     my ($self) = @_;
-    if (!defined $self->xResolution && defined $self->xResolution2) {
-        $self->xResolution($self->xResolution2)
+    if (!defined $self->xResolution && defined $self->xResolutionProperty) {
+        $self->xResolution($self->xResolutionProperty)
     }
-    if (!defined $self->xResolution2 && defined $self->xResolution) {
-        $self->xResolution2($self->xResolution)
+    if (!defined $self->xResolutionProperty && defined $self->xResolution) {
+        $self->xResolutionProperty($self->xResolution)
     }
-    if (!defined $self->yResolution && defined $self->yResolution2) {
-        $self->yResolution($self->yResolution2)
+    if (!defined $self->yResolution && defined $self->yResolutionProperty) {
+        $self->yResolution($self->yResolutionProperty)
     }
-    if (!defined $self->yResolution2 && defined $self->yResolution) {
-        $self->yResolution2($self->yResolution)
+    if (!defined $self->yResolutionProperty && defined $self->yResolution) {
+        $self->yResolutionProperty($self->yResolution)
     }
 }
 
 sub matchPixelAndPointSizes {
     my ($self) = @_;
-    if (!defined $self->pointSize && defined $self->pointSize2) {
-        $self->pointSize($self->pointSize2);
+    if (!defined $self->pointSize && defined $self->pointSizeProperty) {
+        $self->pointSize($self->pointSizeProperty);
     }
-    if (!defined $self->pointSize2 && defined $self->pointSize) {
-        $self->pointSize2($self->pointSize);
+    if (!defined $self->pointSizeProperty && defined $self->pointSize) {
+        $self->pointSizeProperty($self->pointSize);
     }
-    if (!defined $self->pixelSize && defined $self->pixelSize2) {
-        $self->pixelSize($self->pixelSize2);
+    if (!defined $self->pixelSize && defined $self->pixelSizeProperty) {
+        $self->pixelSize($self->pixelSizeProperty);
     }
-    if (!defined $self->pixelSize2 && defined $self->pixelSize) {
-        $self->pixelSize2($self->pixelSize);
+    if (!defined $self->pixelSizeProperty && defined $self->pixelSize) {
+        $self->pixelSizeProperty($self->pixelSize);
     }
 }
 
@@ -379,7 +379,7 @@ sub toString {
 # -   1: BDF font info
 # -   2: BDF font properties
 
-sub xResolution2 {
+sub xResolutionProperty {
     my $self = shift;
     if (!scalar @_) {
         return $self->properties->getNumeric('RESOLUTION_X');
@@ -388,7 +388,7 @@ sub xResolution2 {
     $self->properties->setNumeric('RESOLUTION_X', $value);
 }
 
-sub yResolution2 {
+sub yResolutionProperty {
     my $self = shift;
     if (!scalar @_) {
         return $self->properties->getNumeric('RESOLUTION_Y');
@@ -397,7 +397,7 @@ sub yResolution2 {
     $self->properties->setNumeric('RESOLUTION_Y', $value);
 }
 
-sub pointSize2 {                # returns or sets value in points
+sub pointSizeProperty {                # returns or sets value in points
     my $self = shift;
     if (!scalar @_) {
         my $value = $self->properties->getNumeric('POINT_SIZE');
@@ -424,7 +424,7 @@ sub pixelSize {
     $self->pointSize($value);
 }
 
-sub pixelSize2 {
+sub pixelSizeProperty {
     my $self = shift;
     if (!scalar @_) {
         return $self->properties->getNumeric('PIXEL_SIZE');
@@ -453,7 +453,7 @@ sub descent {
     die("setting descent not supported\n");
 }
 
-sub ascent2 {
+sub ascentProperty {
     my $self = shift;
     if (!scalar @_) {
         return $self->properties->getNumeric('FONT_ASCENT');
@@ -462,7 +462,7 @@ sub ascent2 {
     $self->properties->setNumeric('FONT_ASCENT', $value);
 }
 
-sub descent2 {
+sub descentProperty {
     my $self = shift;
     if (!scalar @_) {
         return $self->properties->getNumeric('FONT_DESCENT');
