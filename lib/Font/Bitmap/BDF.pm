@@ -19,6 +19,7 @@ has boundingBoxOffsetX => (is => 'rw'); # integer pixels
 has boundingBoxOffsetY => (is => 'rw'); # integer pixels
 
 has metricsSet => (is => 'rw');         # integer
+has guess => (is => 'rw', default => 0);
 
 # in scalable units, or units of 1/1000th of the point size of the
 # glyph
@@ -86,62 +87,64 @@ sub appendGlyph {
 
 sub finalize {
     my ($self) = @_;
-}
-
-sub fix {
-    my ($self) = @_;
+    warn("Font::Bitmap::BDF::finalize: I'm running\n");
+    if ($self->guess) {
+        warn(sprintf("Font::Bitmap::BDF::fix: guessing? %s\n", ($self->guess ? "yes" : "no")));
+    }
+    $self->guessPixelSize()        if $self->guess;
+    $self->guessAscentAndDescent() if $self->guess;
     $self->matchResolutions();
     $self->matchPixelAndPointSizes();
-    $self->fixAscentDescent();
-    $self->fixFromXLFDName();
+    $self->matchAscentAndDescent();
     foreach my $glyph (@{$self->glyphs}) {
-        $glyph->fix();
+        $glyph->guessSDWidths() if $self->guess;
+        $glyph->matchSDWidths();
+        $glyph->finalize();
+        # $glyph->trim();
     }
 }
 
-sub assumePixelSize {
+sub guessAscentAndDescent {
     my ($self) = @_;
-    return unless defined $self->ascent;
-    return unless defined $self->descent;
-    if (!defined $self->pixelSize) {
-        $self->pixelSize($self->ascent + $self->descent);
+    my $bbHeight = $self->boundingBoxHeight // 0;
+    my $bbOffset = $self->boundingBoxOffsetY // 0;
+    if (!defined $self->ascentProperty) {
+        $self->ascentProperty($bbHeight + $bbOffset);
+    }
+    if (!defined $self->descentProperty) {
+        if ($bbOffset < 0) {
+            $self->descentProperty(-$bbOffset);
+        } else {
+            $self->descentProperty(0);
+        }
     }
 }
 
-sub assumeSDWidths {
+sub guessPixelSize {
     my ($self) = @_;
-    foreach my $glyph (@{$self->glyphs}) {
-        $glyph->assumeSDWidths();
-    }
-}
-
-sub fixSDWidths {
-    my ($self) = @_;
-    foreach my $glyph (@{$self->glyphs}) {
-        $glyph->fixSDWidths();
-    }
-}
-
-# this is complicated.
-#
-# because while BDF *properties* have FONT_ASCENT and FONT_DESCENT,
-# BDF *info* don't.  BDF info *does* have bounding box but it's not
-# exactly the same.
-sub fixAscentDescent {
-    my ($self) = @_;
+    warn("guessing pixel size...\n");
     if (defined $self->ascent && defined $self->descent) {
+        warn("ascent is ", $self->ascent, "\n");
+        warn("descent is ", $self->descent, "\n");
         my $height = $self->ascent + $self->descent;
+        if (!defined $self->pixelSize) {
+            $self->pixelSize($height);
+            warn("setting pixel size to ", $self->pixelSize, "\n");
+        }
         if (!defined $self->pixelSizeProperty) {
             $self->pixelSizeProperty($height);
+            warn("setting pixel size property to ", $self->pixelSizeProperty, "\n");
         }
-        if ($height == $self->pixelSizeProperty) {
-            if (!defined $self->ascentProperty) {
-                $self->ascentProperty($self->ascent);
-            }
-            if (!defined $self->descentProperty) {
-                $self->descentProperty($self->descent);
-            }
-        }
+    }
+}
+
+sub matchAscentAndDescent {
+    my ($self) = @_;
+    if (defined $self->ascent && !defined $self->ascentProperty) {
+        $self->ascentProperty($self->ascent);
+    }
+    if (defined $self->descent && !defined $self->descentProperty) {
+        $self->descentProperty($self->descent);
     }
 }
 
@@ -385,7 +388,7 @@ sub xResolutionProperty {
         return $self->properties->getNumeric('RESOLUTION_X');
     }
     my $value = shift;
-    $self->properties->setNumeric('RESOLUTION_X', $value);
+    $self->properties->setNumeric('RESOLUTION_X', round($value));
 }
 
 sub yResolutionProperty {
@@ -394,7 +397,7 @@ sub yResolutionProperty {
         return $self->properties->getNumeric('RESOLUTION_Y');
     }
     my $value = shift;
-    $self->properties->setNumeric('RESOLUTION_Y', $value);
+    $self->properties->setNumeric('RESOLUTION_Y', round($value));
 }
 
 sub pointSizeProperty {                # returns or sets value in points
@@ -406,7 +409,7 @@ sub pointSizeProperty {                # returns or sets value in points
     }
     my $value = shift;
     $value *= 10 if defined $value;
-    $self->properties->setNumeric('POINT_SIZE', $value);
+    $self->properties->setNumeric('POINT_SIZE', round($value));
 }
 
 sub pixelSize {
@@ -430,7 +433,7 @@ sub pixelSizeProperty {
         return $self->properties->getNumeric('PIXEL_SIZE');
     }
     my $value = shift;
-    $self->properties->setNumeric('PIXEL_SIZE', $value);
+    $self->properties->setNumeric('PIXEL_SIZE', round($value));
 }
 
 sub ascent {
@@ -459,7 +462,7 @@ sub ascentProperty {
         return $self->properties->getNumeric('FONT_ASCENT');
     }
     my $value = shift;
-    $self->properties->setNumeric('FONT_ASCENT', $value);
+    $self->properties->setNumeric('FONT_ASCENT', round($value));
 }
 
 sub descentProperty {
@@ -468,7 +471,7 @@ sub descentProperty {
         return $self->properties->getNumeric('FONT_DESCENT');
     }
     my $value = shift;
-    $self->properties->setNumeric('FONT_DESCENT', $value);
+    $self->properties->setNumeric('FONT_DESCENT', round($value));
 }
 
 1;

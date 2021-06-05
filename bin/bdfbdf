@@ -17,7 +17,7 @@ BEGIN {
 }
 
 #------------------------------------------------------------------------------
-our $assume = 0;
+our $guess = 0;
 our $resolutionX;
 our $resolutionY;
 our $verbose = 0;
@@ -27,7 +27,7 @@ use Getopt::Long;
 Getopt::Long::Configure('bundling', 'gnu_compat', 'no_ignore_case');
 Getopt::Long::GetOptions(
     'v|verbose+'       => \$verbose,
-    'a|assume'         => \$assume,
+    'a|guess'         => \$guess,
     'h|help'           => sub { usage(); exit(0); },
     'r|resolution=f'   => sub { $resolutionX = $resolutionY = $_[1]; },
     'x|resolution-x=f' => \$resolutionX,
@@ -39,7 +39,7 @@ usage:
     $PROGNAME [<option> ...] [<filename> ...]
 options:
     -h, --help
-    -a, --assume
+    -a, --guess
     -r, --resolution=<float>        nominally, DPI
     -x, --resolution-x=<float>
     -y, --resolution-y=<float>
@@ -53,22 +53,22 @@ use Font::Bitmap::BDF::Parser;
 #------------------------------------------------------------------------------
 my $parser = Font::Bitmap::BDF::Parser->new();
 $parser->verbose($verbose);
+warn(sprintf("bdfbdf: guessing? %s\n", ($guess ? "yes" : "no")));
+$parser->font->guess($guess);
 
 if (defined $resolutionX && defined $resolutionY) {
     $parser->resolution($resolutionX, $resolutionY);
-} elsif ($assume) {
+} elsif ($guess) {
     $parser->resolution(75);
 }
+
+
 
 while (<>) {
     $parser->filename($ARGV) if !defined $parser->filename;
     $parser->parseLine($_);
 }
+warn("EOF\n");
 $parser->eof();
-
-$parser->font->fix();
-$parser->font->assumePixelSize() if $assume;
-$parser->font->assumeSDWidths() if $assume;
-$parser->font->fixSDWidths();
 
 print $parser->font->toString();

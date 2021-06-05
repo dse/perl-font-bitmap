@@ -145,11 +145,33 @@ sub resolution {
         my ($x, $y) = @_;
         $y //= $x;
         if (!defined $self->xResolution) {
+            warn("Parser: setting x resolution to $x\n");
             $self->xResolution($x);
         }
         if (!defined $self->yResolution) {
+            warn("Parser: setting y resolution to $y\n");
             $self->yResolution($y);
         }
+    }
+    if (defined $self->xResolution) {
+            if (!defined $self->font->xResolution) {
+                $self->font->xResolution($self->xResolution);
+                warn("Parser: set font x resolution to ", $self->font->xResolution, "\n");
+            }
+            if (!defined $self->font->xResolutionProperty) {
+                $self->font->xResolutionProperty($self->xResolution);
+                warn("Parser: set font x resolution property to ", $self->font->xResolutionProperty, "\n");
+            }
+    }
+    if (defined $self->yResolution) {
+            if (!defined $self->font->yResolution) {
+                $self->font->yResolution($self->yResolution);
+                warn("Parser: set font y resolution to ", $self->font->yResolution, "\n");
+            }
+            if (!defined $self->font->yResolutionProperty) {
+                $self->font->yResolutionProperty($self->yResolution);
+                warn("Parser: set font y resolution property to ", $self->font->yResolutionProperty, "\n");
+            }
     }
 }
 
@@ -387,9 +409,9 @@ sub parseLineState3 {
                         (?<endMarker>[+|])?
                         \s*$}xi) {
         $self->glyph->appendBitmapData({
-            format      => 'dots',
+            format      => 'pixels',
             startMarker => $+{startMarker},
-            dots        => $+{data},
+            pixels      => $+{data},
             endMarker   => $+{endMarker},
         });
         $self->state(4);
@@ -425,9 +447,9 @@ sub parseLineState4 {
                         (?<endMarker>[+|])?
                         \s*$}xi) {
         $self->glyph->appendBitmapData({
-            format      => 'dots',
+            format      => 'pixels',
             startMarker => $+{startMarker},
-            dots        => $+{data},
+            pixels      => $+{data},
             endMarker   => $+{endMarker},
         });
     }
@@ -436,29 +458,36 @@ sub parseLineState4 {
 sub endChar {
     my ($self) = @_;
     if (defined $self->glyph) {
-        $self->glyph->finalize();
         $self->glyph(undef);
     }
 }
 
 sub endFont {
     my ($self) = @_;
+    warn("Parser::endFont: I'm running\n");
     $self->endChar();
     $self->font->finalize();
     if (!defined $self->font->xResolution) {
         if (defined $self->xResolution) {
             $self->font->xResolution($self->xResolution);
         }
+        if (defined $self->xResolutionProperty) {
+            $self->font->xResolutionProperty($self->xResolution);
+        }
     }
     if (!defined $self->font->yResolution) {
         if (defined $self->yResolution) {
             $self->font->yResolution($self->yResolution);
+        }
+        if (defined $self->yResolutionProperty) {
+            $self->font->yResolutionProperty($self->yResolution);
         }
     }
 }
 
 sub eof {
     my ($self) = @_;
+    warn("Parser::eof: I'm running\n");
     $self->endFont();
 }
 
