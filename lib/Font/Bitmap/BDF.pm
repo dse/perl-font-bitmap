@@ -327,17 +327,17 @@ sub toString {
     if (defined $self->name) {
         $result .= sprintf("FONT %s\n", $self->name);
     }
-    if (defined $self->pointSize ||
-        defined $self->xResolution ||
+    if (defined $self->pointSize &&
+        defined $self->xResolution &&
         defined $self->yResolution) {
         $result .= sprintf("SIZE %d %d %d\n",
                            round($self->pointSize // 0),
                            round($self->xResolution // 0),
                            round($self->yResolution // 0));
     }
-    if (defined $self->boundingBoxWidth ||
-        defined $self->boundingBoxHeight ||
-        defined $self->boundingBoxOffsetX ||
+    if (defined $self->boundingBoxWidth &&
+        defined $self->boundingBoxHeight &&
+        defined $self->boundingBoxOffsetX &&
         defined $self->boundingBoxOffsetY) {
         $result .= sprintf("FONTBOUNDINGBOX %d %d %d %d\n",
                            round($self->boundingBoxWidth // 0),
