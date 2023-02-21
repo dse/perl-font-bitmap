@@ -312,6 +312,8 @@ sub parseLineState0 {
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
+    } elsif ($line =~ m{^\s*#}) {
+        # do nothing
     }
 }
 
