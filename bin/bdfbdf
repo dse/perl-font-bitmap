@@ -2,27 +2,17 @@
 use warnings;
 use strict;
 use v5.10.0;
-use utf8;
-
-#------------------------------------------------------------------------------
+use open qw(:locale);
 use File::Basename qw(basename);
 our $PROGNAME = basename($0);
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 
-#------------------------------------------------------------------------------
-use open IO => qw(:locale);
-use Encode::Locale;
-use Encode qw(decode);
-BEGIN {
-    @ARGV = map { decode('locale', $_, Encode::FB_CROAK) } @ARGV;
-}
-
-#------------------------------------------------------------------------------
 our $guess = 0;
 our $resolutionX;
 our $resolutionY;
 our $verbose = 0;
 
-#------------------------------------------------------------------------------
 use Getopt::Long;
 Getopt::Long::Configure('bundling', 'gnu_compat', 'no_ignore_case');
 Getopt::Long::GetOptions(
@@ -45,9 +35,6 @@ options:
     -y, --resolution-y=<float>
 END
 
-#------------------------------------------------------------------------------
-use FindBin;
-use lib "$FindBin::Bin/../lib";
 use Font::Bitmap::BDF::Parser;
 
 #------------------------------------------------------------------------------
@@ -61,8 +48,6 @@ if (defined $resolutionX && defined $resolutionY) {
 } elsif ($guess) {
     $parser->resolution(75);
 }
-
-
 
 while (<>) {
     $parser->filename($ARGV) if !defined $parser->filename;
