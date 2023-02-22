@@ -8,7 +8,7 @@ use Mooo;
 sub new {
     my ($class, %args) = @_;
     my $self = bless({}, $class);
-    $self->init();
+    $self->init(%args);
     return $self;
 }
 
