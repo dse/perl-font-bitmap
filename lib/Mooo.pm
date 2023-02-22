@@ -11,10 +11,10 @@ sub has(*;@) {
     my ($name, %args) = @_;
     my $class = caller;
     my $defaultshash = \%{"${class}::DEFAULTS"};
-    printf STDERR ("[%s] has %s\n", $class, $name);
+    # printf STDERR ("[%s] has %s\n", $class, $name);
     if (exists $args{default}) {
         $defaultshash->{$name} = $args{default};
-        printf STDERR ("    with a default value\n");
+        # printf STDERR ("    with a default value\n");
     }
     my $sub = sub {
         my $self = shift;
@@ -32,7 +32,7 @@ sub init {
     my @keys = keys %$defaultshash;
 
     foreach my $key (keys %$defaultshash) {
-        printf STDERR ("%s [%s] setting %s\n", $class, $self, $key);
+        # printf STDERR ("%s [%s] setting %s\n", $class, $self, $key);
         my $default = $defaultshash->{$key};
         if (ref $default eq 'CODE') {
             $self->{$key} = $args{$key} // &$default($self);

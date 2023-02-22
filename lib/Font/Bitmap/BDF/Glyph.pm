@@ -10,7 +10,7 @@ sub new {
     my $self = bless({}, $class);
     $self->init(%args);
     my @args = %args;
-    print STDERR ("$self @args\n");
+    # print STDERR ("$self @args\n");
     return $self;
 }
 
@@ -309,7 +309,7 @@ sub guessSDWidths {
 
 sub matchSDWidths {
     my ($self) = @_;
-    printf STDERR ("%s font is %s\n", $self, $self->font // '(undef)');
+    # printf STDERR ("%s font is %s\n", $self, $self->font // '(undef)');
     my $rx = $self->font->xResolution;
     my $ry = $self->font->yResolution;
     my $p = $self->font->pointSize;

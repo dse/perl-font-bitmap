@@ -335,9 +335,7 @@ sub parseLineState1 {
     } elsif ($line =~ m{^\s* (?<name>$RE{word})
                         \s+ (?<value>$RE{string}) \s*$}xi) {
         $self->font->properties->append($+{name}, $+{value});
-        printf STDERR ("BDF::Parser: setting %s to %s\n",
-                       $+{name} // '(undef)',
-                       $+{value} // '(undef)');
+        # printf STDERR ("BDF::Parser: setting %s to %s\n", $+{name} // '(undef)', $+{value} // '(undef)');
 
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
