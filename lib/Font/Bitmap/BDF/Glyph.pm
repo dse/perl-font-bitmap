@@ -2,7 +2,15 @@ package Font::Bitmap::BDF::Glyph;
 use warnings;
 use strict;
 
-use Moo;
+use lib "../../..";
+use Mooo;
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless({}, $class);
+    $self->init();
+    return $self;
+}
 
 has name                => (is => 'rw'); # should be adobe glyph name
 has encoding            => (is => 'rw'); # integer

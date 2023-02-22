@@ -122,7 +122,15 @@ Does not support vertical writing mode.
 
 =cut
 
-use Moo;
+use lib "../../..";
+use Mooo;
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless({}, $class);
+    $self->init();
+    return $self;
+}
 
 has state => (is => 'rw', default => 0);
 has font => (
