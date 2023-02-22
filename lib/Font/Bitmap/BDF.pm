@@ -2,7 +2,32 @@ package Font::Bitmap::BDF;
 use warnings;
 use strict;
 
-use Moo;
+our %DEFAULTS;
+
+sub has {
+    my ($name, %args) = @_;
+    $DEFAULTS{$name} = $args{default} if exists $args{default};
+    my $symname = __PACKAGE__ . '::' . $name;
+    no strict 'refs';
+    *{$symname} = sub {
+        my $self = shift;
+        return $self->{$name} = shift if scalar @_;
+        return $self->{$name};
+    };
+}
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless({}, $class);
+    foreach my $key (keys %DEFAULTS) {
+        if (ref $DEFAULTS{$key} eq 'CODE') {
+            $self->{$key} = &{$DEFAULTS{$key}}();
+        } else {
+            $self->{$key} = $DEFAULTS{$key};
+        }
+    }
+    return $self;
+}
 
 has formatVersion  => (is => 'rw'); # STARTFONT <number>
 has comments       => (is => 'rw', default => sub { return []; });
