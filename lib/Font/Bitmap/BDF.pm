@@ -46,18 +46,6 @@ has dWidth1Y => (is => 'rw');
 has vVectorX => (is => 'rw');
 has vVectorY => (is => 'rw');
 
-# to convert scalable units to device pixels,
-#     multiply by <p> / 1000 then multiply by <r> / 72.
-#                          ^
-#                          |
-#     this gets printers points
-
-# to convert device pixels to scalable units,
-#     multiply by 72 / <r> then multiply by 1000 / <p>.
-#                        ^
-#                        |
-#     this gets printers points
-
 has glyphs => (is => 'rw', default => sub { return []; });
 
 has parser => (is => 'rw');
@@ -95,15 +83,100 @@ sub appendGlyph {
 
 sub finalize {
     my ($self) = @_;
-    warn("Font::Bitmap::BDF::finalize: I'm running\n");
-    if ($self->guess) {
-        warn(sprintf("Font::Bitmap::BDF::fix: guessing? %s\n", ($self->guess ? "yes" : "no")));
+
+    # $xxx1 variables come from top level font information.  Generally
+    # we favor these over $xxx2 variables, which see below.
+    my $pixelSize1 = $self->pixelSize;
+    my $pointSize1 = $self->pointSize;
+    my $xRes1 = $self->xResolution;
+    my $yRes1 = $self->yResolution;
+
+    # $xxx2 variables come from the font properties section.
+    my $pixelSize2 = $self->properties->getNumeric('PIXEL_SIZE');
+    my $pointSize2 = $self->properties->getNumeric('POINT_SIZE');
+    my $xRes2      = $self->properties->getNumeric('RESOLUTION_X');
+    my $yRes2      = $self->properties->getNumeric('RESOLUTION_Y');
+    my $ascent2    = $self->properties->getNumeric('FONT_ASCENT');
+    my $descent2   = $self->properties->getNumeric('FONT_DESCENT');
+
+    if (!defined $xRes1 && !defined $xRes2) {
+        die("no x resolution specified\n");
     }
-    $self->guessPixelSize()        if $self->guess;
-    $self->guessAscentAndDescent() if $self->guess;
-    $self->matchResolutions();
-    $self->matchPixelAndPointSizes();
-    $self->matchAscentAndDescent();
+    if (defined $xRes1 && defined $xRes2 && $xRes1 != $xRes2) {
+        die("x resolutions differ\n");
+    }
+
+    if (!defined $yRes1 && !defined $yRes2) {
+        die("no y resolution specified\n");
+    }
+    if (defined $yRes1 && defined $yRes2 && $yRes1 != $yRes2) {
+        die("y resolutions differ\n");
+    }
+
+    if (!defined $pixelSize1 && !defined $pixelSize2) {
+        die("no pixel size specified\n");
+    }
+    if (defined $pixelSize1 && defined $pixelSize2 && $pixelSize1 != $pixelSize2) {
+        die("pixel sizes differ\n");
+    }
+
+    if (!defined $pointSize1 && !defined $pointSize2) {
+        die("no point size specified\n");
+    }
+    if (defined $pointSize1 && defined $pointSize2 && $pointSize1 != round($pointSize2 / 10)) {
+        die("point sizes differ\n");
+    }
+
+    my $xRes = $xRes1 // $xRes2;
+    my $yRes = $yRes1 // $yRes2;
+
+    my $pixelSize = $pixelSize1 // $pixelSize2;
+
+    # we round this later.
+    my $pointSize =
+      (defined $pointSize1) ? $pointSize1 :
+      (defined $pointSize2) ? ($pointSize2 / 10) : undef;
+
+    # "Guess" initial values of ascent and descent from font bounding
+    # box
+    my $ascent1;
+    my $descent1;
+    my $bbw = $self->boundingBoxWidth;
+    my $bbh = $self->boundingBoxHeight;
+    my $bbx = $self->boundingBoxOffsetX;
+    my $bby = $self->boundingBoxOffsetY;
+    if (defined $bbh && defined $bby) {
+        $ascent1 = $bbh + $bby;
+        if ($bby <= 0) {
+            $descent1 = -$bby;
+        } else {
+            $descent1 = 0;
+        }
+    }
+
+    # Derived implicitly from font info.
+    ($ascent1, $descent1) = recomputeAscentDescent($ascent1, $descent1);
+
+    # Specified explicitly as FONT_{ASCENT,DESCENT} properties.
+    ($ascent2, $descent2) = recomputeAscentDescent($ascent2, $descent2);
+
+    # Favor what's explicitly specified over what's derived implicitly
+    # if they differ.
+    my $ascent  = $ascent2 // $ascent1;
+    my $descent = $descent2 // $descent1;
+
+    $self->pixelSize($pixelSize) if defined $pixelSize;
+    $self->pointSize(round($pointSize)) if defined $pointSize;
+    $self->xResolution($xRes) if defined $xRes;
+    $self->yResolution($yRes) if defined $yRes;
+
+    $self->properties->setNumeric('PIXEL_SIZE', $pixelSize) if defined $pixelSize;
+    $self->properties->setNumeric('POINT_SIZE', round($pointSize * 10)) if defined $pointSize;
+    $self->properties->setNumeric('RESOLUTION_X', $xRes) if defined $xRes;
+    $self->properties->setNumeric('RESOLUTION_Y', $yRes) if defined $yRes;
+    $self->properties->setNumeric('FONT_ASCENT', $ascent) if defined $ascent;
+    $self->properties->setNumeric('FONT_DESCENT', $descent) if defined $descent;
+
     foreach my $glyph (@{$self->glyphs}) {
         $glyph->guessSDWidths() if $self->guess;
         $glyph->matchSDWidths();
@@ -481,5 +554,77 @@ sub descentProperty {
     my $value = shift;
     $self->properties->setNumeric('FONT_DESCENT', round($value));
 }
+
+# For when ascent + descent != pixel size...
+our $FAVOR_ASCENT;              # 1 = favor ascent; 0 = favor descent
+BEGIN {
+    $FAVOR_ASCENT = 0;
+}
+
+# Ascent + descent must be pixel size to silence a fontforge
+# warning.
+sub recomputeAscentDescent {
+    my ($ascent, $descent, $pixelSize) = @_;
+    if (!defined $ascent) { return; }
+    if (!defined $descent) { return; }
+    if (!defined $pixelSize) { return ($ascent, $descent); }
+    $ascent = round($ascent);
+    $descent = round($descent);
+    $pixelSize = round($pixelSize);
+    my $cmp = ($ascent + $descent) - $pixelSize;
+    # < 0 means asc+desc < px; > 0 means asc+desc > px
+    if ($cmp == 0) {
+        return ($ascent, $descent);
+    } elsif ($cmp < 0) {
+        my $addBoth = -$cmp;    # positive
+        my $addAscent;
+        my $addDescent;
+        if ($FAVOR_ASCENT) {
+            $addDescent = floor($addBoth / 2);
+            $addAscent = $addBoth - $addDescent;
+        } else {
+            $addAscent = floor($addBoth / 2);
+            $addDescent = $addBoth - $addAscent;
+        }
+        $ascent += $addAscent;
+        $descent += $addDescent;
+        return ($ascent, $descent);
+    } else {
+        my $subtractBoth = $cmp; # positive
+        my $subtractDescent;
+        my $subtractAscent;
+        if ($FAVOR_ASCENT) {
+            $subtractAscent = floor($subtractBoth / 2);
+            $subtractDescent = $subtractBoth - $subtractAscent;
+        } else {
+            $subtractDescent = floor($subtractBoth / 2);
+            $subtractAscent = $subtractBoth - $subtractDescent;
+        }
+        $ascent -= $subtractAscent;
+        $descent -= $subtractDescent;
+        return ($ascent, $descent);
+    }
+}
+
+# In case we ever need to convert between pixel sizes and scalable
+# WIDTH units:
+#
+# <swidth> is the scalable width in units of 1/1000 the size of the
+# glyph.
+#
+# <pxsize> is the font's vertical pixel size.
+# <ptsize> is the font's vertical point size.
+# <ptwidth> is the width in points.
+# <pxwidth> is the width in pixels.
+#
+# <ptwidth> = <swidth> / 1000 * <ptsize>
+# <pxwidth> = <ptwidth> / 72 * <xres>
+# <ptwidth> = <pxwidth> * <xres> / 72
+# <swidth> = <ptwidth> / <ptsize> * 1000
+#
+# Conversion between HEIGHT units:
+#
+# <pxsize> = <ptsize> / 72 * <yres>
+# <ptsize> = <pxsize> / <yres> * 72
 
 1;
