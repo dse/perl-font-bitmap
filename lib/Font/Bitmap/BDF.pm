@@ -120,11 +120,12 @@ sub finalize {
         die("pixel sizes differ\n");
     }
 
-    if (!defined $pointSize1 && !defined $pointSize2) {
-        die("no point size specified\n");
-    }
     if (defined $pointSize1 && defined $pointSize2 && $pointSize1 != round($pointSize2 / 10)) {
         die("point sizes differ\n");
+    }
+    if (!defined $pointSize1 && !defined $pointSize2) {
+        $pointSize1 = ($pixelSize1 // $pixelSize2) * 72 / ($yRes1 // $yRes2 // 96);
+        $pointSize2 = $pointSize1;
     }
 
     my $xRes = $xRes1 // $xRes2;
