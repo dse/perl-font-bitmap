@@ -480,6 +480,7 @@ sub endFont {
     my ($self) = @_;
     warn("Parser::endFont: I'm running\n");
     $self->endChar();
+    $self->font->filename($self->filename);
     $self->font->finalize();
     if (!defined $self->font->xResolution) {
         if (defined $self->xResolution) {

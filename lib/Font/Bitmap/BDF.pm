@@ -12,6 +12,7 @@ sub new {
     return $self;
 }
 
+has filename       => (is => 'rw', default => '-');
 has formatVersion  => (is => 'rw'); # STARTFONT <number>
 has comments       => (is => 'rw', default => sub { return []; });
 has contentVersion => (is => 'rw');
@@ -213,21 +214,21 @@ BEGIN {
     %DEFAULT_PROPERTIES = (
         FOUNDRY          => undef,
         FAMILY_NAME      => undef,
-        WEIGHT_NAME      => undef,
-        SLANT            => undef,
-        SETWIDTH_NAME    => undef,
-        ADD_STYLE_NAME   => undef,
+        WEIGHT_NAME      => undef, # usually Bold or Medium
+        SLANT            => undef, # usually I, O, or R
+        SETWIDTH_NAME    => "Normal",
+        ADD_STYLE_NAME   => "",
         PIXEL_SIZE       => '$CALCULATED',
         POINT_SIZE       => '$CALCULATED',
         RESOLUTION_X     => '$CALCULATED',
         RESOLUTION_Y     => '$CALCULATED',
-        SPACING          => undef,
-        AVERAGE_WIDTH    => undef,
+        SPACING          => undef, # C, M, or P
+        AVERAGE_WIDTH    => \&computeAverageWidth,
         CHARSET_REGISTRY => "ISO10646",
         CHARSET_ENCODING => "1",
         FONT_ASCENT      => '$CALCULATED',
         FONT_DESCENT     => '$CALCULATED',
-        DEFAULT_CHAR     => undef,
+        DEFAULT_CHAR     => \&computeDefaultChar,
     );
 }
 
@@ -235,27 +236,76 @@ sub finalizeProperties {
     my ($self) = @_;
     foreach my $propertyName (@DEFAULT_PROPERTY_NAMES) {
         my $value = $self->properties->get($propertyName);
-        if (!defined $value) {
-            my $defaultValue = $DEFAULT_PROPERTIES{$propertyName};
-            if (defined $defaultValue) {
-                if ($defaultValue eq '$CALCULATED') {
-                    printf STDERR ("WARNING: %s: %s property SHOULD have been CALCULATED; not setting.\n",
-                                   $self->filename,
-                                   $propertyName);
-                } else {
-                    printf STDERR ("NOTICE: %s: %s property should have been specified; setting to %s\n",
-                                   $self->filename,
-                                   $propertyName,
-                                   $defaultValue);
-                    $self->properties->set($propertyName, $defaultValue);
-                }
-            } else {
-                printf STDERR ("WARNING: %s: %s property SHOULD be specified; not setting.\n",
+        next if defined $value;
+
+        my $defaultValue = $DEFAULT_PROPERTIES{$propertyName};
+        if (!defined $defaultValue) {
+            printf STDERR ("WARNING: %s: %s property SHOULD be specified; not setting.\n",
+                           $self->filename,
+                           $propertyName);
+        }
+
+        if (ref $defaultValue eq 'CODE') {
+            my $newDefaultValue = $self->$defaultValue();
+            if (!defined $newDefaultValue) {
+                printf STDERR ("WARNING: %s: %s property SHOULD have been specified; cannot compute default.\n",
                                $self->filename,
                                $propertyName);
+                next;
             }
+            printf STDERR ("NOTICE: %s: %s property should have been specified; setting to %s\n",
+                           $self->filename,
+                           $propertyName,
+                           $newDefaultValue);
+            $self->properties->set($propertyName, $newDefaultValue);
+            next;
         }
+
+        if (ref $defaultValue eq '$CALCULATED') {
+            printf STDERR ("WARNING: %s: %s property SHOULD have been CALCULATED; not setting.\n",
+                           $self->filename,
+                           $propertyName);
+            next;
+        }
+
+        printf STDERR ("NOTICE: %s: %s property should have been specified; setting to %s\n",
+                       $self->filename,
+                       $propertyName,
+                       $defaultValue);
+        $self->properties->set($propertyName, $defaultValue);
     }
+}
+
+sub computeAverageWidth {
+    my ($self) = @_;
+    my $glyphCount = scalar @{$self->glyphs};
+    return if !$glyphCount;
+    my $totalWidth = 0;
+    foreach my $glyph (@{$self->glyphs}) {
+        $totalWidth += $glyph->dWidthX;
+    }
+    return round($totalWidth / $glyphCount);
+}
+
+sub computeDefaultChar {
+    my ($self) = @_;
+
+    # U+0020 SPACE
+    if (grep { $_->encoding == 32 } @{$self->glyphs}) {
+        return 32;
+    }
+
+    # U+0000 <Null>
+    if (grep { $_->encoding == 0 } @{$self->glyphs}) {
+        return 0;
+    }
+
+    # U+FFFD REPLACEMENT CHARACTER
+    if (grep { $_->encoding == 0xfffd } @{$self->glyphs}) {
+        return 0xfffd;
+    }
+
+    return;
 }
 
 sub guessAscentAndDescent {
