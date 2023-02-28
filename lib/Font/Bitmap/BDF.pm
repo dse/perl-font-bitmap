@@ -184,6 +184,78 @@ sub finalize {
         $glyph->finalize();
         # $glyph->trim();
     }
+
+    $self->finalizeProperties();
+}
+
+our @DEFAULT_PROPERTY_NAMES;
+our %DEFAULT_PROPERTIES;
+BEGIN {
+    @DEFAULT_PROPERTY_NAMES = (
+        "FOUNDRY",
+        "FAMILY_NAME",
+        "WEIGHT_NAME",
+        "SLANT",
+        "SETWIDTH_NAME",
+        "ADD_STYLE_NAME",
+        "PIXEL_SIZE",
+        "POINT_SIZE",
+        "RESOLUTION_X",
+        "RESOLUTION_Y",
+        "SPACING",
+        "AVERAGE_WIDTH",
+        "CHARSET_REGISTRY",
+        "CHARSET_ENCODING",
+        "FONT_ASCENT",
+        "FONT_DESCENT",
+        "DEFAULT_CHAR",
+    );
+    %DEFAULT_PROPERTIES = (
+        FOUNDRY          => undef,
+        FAMILY_NAME      => undef,
+        WEIGHT_NAME      => undef,
+        SLANT            => undef,
+        SETWIDTH_NAME    => undef,
+        ADD_STYLE_NAME   => undef,
+        PIXEL_SIZE       => '$CALCULATED',
+        POINT_SIZE       => '$CALCULATED',
+        RESOLUTION_X     => '$CALCULATED',
+        RESOLUTION_Y     => '$CALCULATED',
+        SPACING          => undef,
+        AVERAGE_WIDTH    => undef,
+        CHARSET_REGISTRY => "ISO10646",
+        CHARSET_ENCODING => "1",
+        FONT_ASCENT      => '$CALCULATED',
+        FONT_DESCENT     => '$CALCULATED',
+        DEFAULT_CHAR     => undef,
+    );
+}
+
+sub finalizeProperties {
+    my ($self) = @_;
+    foreach my $propertyName (@DEFAULT_PROPERTY_NAMES) {
+        my $value = $self->properties->get($propertyName);
+        if (!defined $value) {
+            my $defaultValue = $DEFAULT_PROPERTIES{$propertyName};
+            if (defined $defaultValue) {
+                if ($defaultValue eq '$CALCULATED') {
+                    printf STDERR ("WARNING: %s: %s property SHOULD have been CALCULATED; not setting.\n",
+                                   $self->filename,
+                                   $propertyName);
+                } else {
+                    printf STDERR ("NOTICE: %s: %s property should have been specified; setting to %s\n",
+                                   $self->filename,
+                                   $propertyName,
+                                   $defaultValue);
+                    $self->properties->set($propertyName, $defaultValue);
+                }
+            } else {
+                printf STDERR ("WARNING: %s: %s property SHOULD be specified; not setting.\n",
+                               $self->filename,
+                               $propertyName);
+            }
+        }
+    }
 }
 
 sub guessAscentAndDescent {
