@@ -2,7 +2,15 @@ package Font::Bitmap::BDF::Properties;
 use warnings;
 use strict;
 
-use Moo;
+use lib "../../..";
+use Mooo;
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless({}, $class);
+    $self->init(%args);
+    return $self;
+}
 
 has propertyList => (is => 'rw', default => sub { return []; });
 has propertyHash => (is => 'rw', default => sub { return {}; });

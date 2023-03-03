@@ -4305,17 +4305,17 @@ sub add {
 sub verify {
     foreach my $name (keys %aglByNameArray) {
 	my $count = scalar @{$aglByNameArray{$name}};
-	if ($count != 1) {
-	    warn("$name => $count\n");
-	}
+	# if ($count != 1) {
+	#     warn("$name => $count\n");
+	# }
     }
     foreach my $codepoint (keys %aglByCodepointArray) {
 	my $count = scalar @{$aglByCodepointArray{$codepoint}};
         my @names = @{$aglByCodepointArray{$codepoint}};
 	my $uplus = sprintf('U+%04X', $codepoint);
-	if ($count != 1) {
-	    warn("$uplus => $count @names\n");
-	}
+	# if ($count != 1) {
+	#     warn("$uplus => $count @names\n");
+	# }
     }
 }
 

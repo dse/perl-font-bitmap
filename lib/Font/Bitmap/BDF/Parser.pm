@@ -122,7 +122,15 @@ Does not support vertical writing mode.
 
 =cut
 
-use Moo;
+use lib "../../..";
+use Mooo;
+
+sub new {
+    my ($class, %args) = @_;
+    my $self = bless({}, $class);
+    $self->init(%args);
+    return $self;
+}
 
 has state => (is => 'rw', default => 0);
 has font => (
@@ -266,6 +274,7 @@ sub parseLineState0 {
                         \s+ (?<height>$RE{real})
                         \s+ (?<offsetX>$RE{real})
                         \s+ (?<offsetY>$RE{real})}xi) {
+        printf STDERR ("parseLineState0: FONTBOUNDINGBOX %s %s %s %s\n", $+{width}, $+{height}, $+{offsetX}, $+{offsetY});
         $self->font->boundingBoxWidth($+{width});
         $self->font->boundingBoxHeight($+{height});
         $self->font->boundingBoxOffsetX($+{offsetX});
@@ -312,6 +321,8 @@ sub parseLineState0 {
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
+    } elsif ($line =~ m{^\s*#}) {
+        # do nothing
     }
 }
 
@@ -320,11 +331,14 @@ sub parseLineState0 {
 #
 sub parseLineState1 {
     my ($self, $line) = @_;
+    printf STDERR ("BDF::Parser: line is '%s'\n", $line);
     if ($line =~ m{^\s* ENDPROPERTIES $RE{endWord}}xi) {
         $self->state(0);
     } elsif ($line =~ m{^\s* (?<name>$RE{word})
                         \s+ (?<value>$RE{string}) \s*$}xi) {
         $self->font->properties->append($+{name}, $+{value});
+        printf STDERR ("BDF::Parser: setting %s to %s\n", $+{name} // '(undef)', $+{value} // '(undef)');
+
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
@@ -466,6 +480,7 @@ sub endFont {
     my ($self) = @_;
     warn("Parser::endFont: I'm running\n");
     $self->endChar();
+    $self->font->filename($self->filename);
     $self->font->finalize();
     if (!defined $self->font->xResolution) {
         if (defined $self->xResolution) {
