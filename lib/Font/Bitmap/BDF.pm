@@ -180,10 +180,7 @@ sub finalize {
     $self->properties->setNumeric('FONT_DESCENT', $descent) if defined $descent;
 
     foreach my $glyph (@{$self->glyphs}) {
-        $glyph->guessSDWidths() if $self->guess;
-        $glyph->matchSDWidths();
         $glyph->finalize();
-        # $glyph->trim();
     }
 
     $self->finalizeProperties();

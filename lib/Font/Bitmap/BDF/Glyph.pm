@@ -10,7 +10,7 @@ sub new {
     my $self = bless({}, $class);
     $self->init(%args);
     my @args = %args;
-    # print STDERR ("$self @args\n");
+    # printf STDERR ("[DEBUG] %s: new glyph %s\n", ref $self, $self->{name});
     return $self;
 }
 
@@ -80,7 +80,7 @@ sub trim {
 
 sub finalizeEncoding {
     my ($self) = @_;
-    if ($self->name =~ m{^\s*(?:U\+|0x)(?<codepoint>[[:xdigit:]]+)}xi) {
+    if ($self->name =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
         if (!defined $self->encoding) {
             $self->encoding(hex($+{codepoint}));
         }
@@ -95,8 +95,12 @@ sub finalizeHex {
     foreach my $data (@{$self->bitmapData}) {
         if ($data->{format} eq 'pixels') {
             my $pixels = $data->{pixels};
-            my $hex  = $data->{hex};
+            my $hex = $data->{hex};
             if (defined $pixels && !defined $hex) {
+                # printf STDERR ("[DEBUG] pixels are {%s}\n", $pixels);
+                if ($pixels eq '') {
+                    $pixels = ' '; # best effort
+                }
                 $pixels =~ s{\S}{1}g;
                 $pixels =~ s{\s}{0}g;
                 if (length($pixels) % 4 != 0) {
@@ -127,19 +131,6 @@ sub finalizeIndexes {
 sub finalizeBoundingBox {
     my ($self) = @_;
 
-    if (!defined $self->boundingBoxWidth && defined $self->font->boundingBoxWidth) {
-        $self->boundingBoxWidth($self->font->boundingBoxWidth);
-    }
-    if (!defined $self->boundingBoxHeight && defined $self->font->boundingBoxHeight) {
-        $self->boundingBoxHeight($self->font->boundingBoxHeight);
-    }
-    if (!defined $self->boundingBoxOffsetX && defined $self->font->boundingBoxOffsetX) {
-        $self->boundingBoxOffsetX($self->font->boundingBoxOffsetX);
-    }
-    if (!defined $self->boundingBoxOffsetY && defined $self->font->boundingBoxOffsetY) {
-        $self->boundingBoxOffsetY($self->font->boundingBoxOffsetY);
-    }
-
     if (!defined $self->boundingBoxHeight) {
         $self->boundingBoxHeight(scalar @{$self->bitmapData});
     }
@@ -148,29 +139,31 @@ sub finalizeBoundingBox {
         foreach my $data (@{$self->bitmapData}) {
             my $sm = $data->{startMarker} // '';
             my $em = $data->{endMarker} // '';
-            if ($sm eq '_' || $sm eq '+' || $em eq '_' || $em eq '+') {
+            if ($sm eq '_' || $sm eq '+' || $em eq '_' || $em eq '+') { # BASELINE INDICATOR
                 $baselineIndex = $data->{index};
                 last;
             }
         }
         if (defined $baselineIndex) {
-            $self->boundingBoxOffsetY((scalar(@{$self->bitmapData}) - $baselineIndex - 1) * -1);
+            $self->boundingBoxOffsetY($baselineIndex - scalar(@{$self->bitmapData}) + 1);
         } else {
             $self->boundingBoxOffsetY(0);
         }
     }
     if (!defined $self->boundingBoxWidth) {
-        my $width = 0;
-        foreach my $data (@{$self->bitmapData}) {
-            print STDERR Dumper($data) . "\n";
-            if ($data->{format} eq 'pixels') {
-                $width = max($width, length($data->{pixels}));
-            } elsif ($data->{format} eq 'hex') {
-                $width = max($width, 4 * length($data->{hex}));
+        my $spacing = lc($self->font->properties->get('SPACING') // 'm');
+        $spacing =~ s{^"}{};
+        $spacing =~ s{"$}{};
+        if (defined $spacing && ($spacing eq 'm' || $spacing eq 'c')) {
+            my $bbw = $self->font->boundingBoxWidth;
+            if (defined $bbw) {
+                $self->boundingBoxWidth($bbw);
+            } else {
+                die(sprintf("%s: font has no bounding box width and spacing %s is monospace\n", $self->font->filename, $self->name));
             }
+        } else {
+            die(sprintf("%s: char %s has no bounding box width and spacing %s is not monospace\n", $self->font->filename, $self->name, $spacing // '(undef)'));
         }
-        $self->boundingBoxWidth($width);
-        printf STDERR ("finalizeBoundingBox: [1] set boundingBoxWidth to %s\n", $self->boundingBoxWidth);
     }
     if (!defined $self->boundingBoxOffsetX) {
         $self->boundingBoxOffsetX(-1 * abs($self->negativeLeftOffset));
@@ -241,18 +234,20 @@ sub finalizeWidth {
     }
     my $pointSize = $self->font->pointSize // 0;
     my $xResolution = $self->font->xResolution // 0;
-    if ($pointSize && $xResolution) {
-        if (defined $self->sWidthX) {
-            $self->dWidthX(round($self->sWidthX * $pointSize / 1000 * $xResolution / POINTS_PER_INCH));
-            printf STDERR ("[DEBUG] finalizeWidth: [1] just computed dWidthX; setting to %s\n", $self->dWidthX);
-        } elsif (defined $self->dWidthX) {
-            $self->sWidthX(round($self->dWidthX * 1000 / $pointSize * POINTS_PER_INCH / $xResolution));
-            printf STDERR ("[DEBUG] finalizeWidth: [2] just computed sWidthX; setting to %s\n", $self->sWidthX);
-        } else {
-            $self->dWidthX($self->boundingBoxWidth);
-            $self->sWidthX(round($self->dWidthX * 1000 / $pointSize * POINTS_PER_INCH / $xResolution));
-            printf STDERR ("[DEBUG] finalizeWidth: [3] just computed dWidthX; setting to %s\n", $self->dWidthX);
-            printf STDERR ("[DEBUG] finalizeWidth: [3] just computed sWidthX; setting to %s\n", $self->sWidthX);
+    if (defined $self->sWidthX) {
+        my $dWidthX = round($self->sWidthX * $pointSize / 1000 * $xResolution / POINTS_PER_INCH);
+        $self->dWidthX($dWidthX);
+    } elsif (defined $self->dWidthX) {
+        my $sWidthX = round($self->dWidthX * 1000 / $pointSize * POINTS_PER_INCH / $xResolution);
+        $self->sWidthX($sWidthX);
+    } else {
+        my $dWidthX = $self->boundingBoxWidth + $self->boundingBoxOffsetX;
+        my $sWidthX = round($dWidthX * 1000 / $pointSize * POINTS_PER_INCH / $xResolution);
+        if (!defined $self->font->dWidthX) {
+            $self->dWidthX($dWidthX);
+        }
+        if (!defined $self->font->sWidthX) {
+            $self->sWidthX($sWidthX);
         }
     }
 }
@@ -264,14 +259,12 @@ sub finalizeHeight {
     }
     if (defined $self->sWidthY) {
         $self->dWidthY(round($self->sWidthY * $self->font->pointSize / 1000 * $self->font->yResolution / POINTS_PER_INCH));
-        printf STDERR ("[DEBUG] finalizeWidth: [4] just computed dWidthY = %s\n", $self->dWidthY);
     } elsif (defined $self->dWidthY) {
         $self->sWidthY(round($self->dWidthY * 1000 / $self->font->pointSize * POINTS_PER_INCH / $self->font->yResolution));
-        printf STDERR ("[DEBUG] finalizeWidth: [5] just computed sWidthY = %s\n", $self->sWidthY);
     } else {
-        $self->dWidthY(0);     # assuming horizontal writing mode
+        # assuming horizontal writing mode
+        $self->dWidthY(0);
         $self->sWidthY(0);
-        printf STDERR ("[DEBUG] finalizeWidth: [6] assuming horizontal writing mode; setting dWidthY and sWidthY to 0\n");
     }
 }
 
@@ -317,53 +310,6 @@ sub toString {
     }
     $result .= "ENDCHAR\n";
     return $result;
-}
-
-# DO NOT RUN AFTER MODIFYING BOUNDING BOX
-sub guessSDWidths {
-    my ($self) = @_;
-    if (defined $self->boundingBoxWidth && defined $self->boundingBoxOffsetX) {
-        if (!defined $self->dWidthX) {
-            $self->dWidthX($self->boundingBoxWidth + $self->boundingBoxOffsetX);
-            printf STDERR ("guessSDWidths: computed dWidthX; setting to %s\n", $self->dWidthX);
-        }
-        if (!defined $self->dWidthY) {
-            $self->dWidthY(0);
-            printf STDERR ("guessSDWidths: assuming horiz. writing mode; setting dWidthY to %s\n", $self->dWidthY);
-        }
-    }
-}
-
-sub matchSDWidths {
-    my ($self) = @_;
-    # printf STDERR ("%s font is %s\n", $self, $self->font // '(undef)');
-    my $rx = $self->font->xResolution;
-    my $ry = $self->font->yResolution;
-    my $p = $self->font->pointSize;
-    if (!defined $self->dWidthX && defined $self->sWidthX) {
-        if (defined $rx && defined $p) {
-            $self->dWidthX($self->sWidthX * $p / 1000 * $rx / POINTS_PER_INCH);
-            printf STDERR ("matchSDWidths: computed dWidthX; setting to %s\n", $self->dWidthX);
-        }
-    }
-    if (!defined $self->dWidthY && defined $self->sWidthY) {
-        if (defined $ry && defined $p) {
-            $self->dWidthY($self->sWidthY * $p / 1000 * $ry / POINTS_PER_INCH);
-            printf STDERR ("matchSDWidths: computed dWidthY; setting to %s\n", $self->dWidthY);
-        }
-    }
-    if (!defined $self->sWidthX && defined $self->dWidthX) {
-        if (defined $rx && defined $p) {
-            $self->sWidthX($self->dWidthX * 1000 / $p * POINTS_PER_INCH / $rx);
-            printf STDERR ("matchSDWidths: computed sWidthX; setting to %s\n", $self->sWidthX);
-        }
-    }
-    if (!defined $self->sWidthY && defined $self->dWidthY) {
-        if (defined $rx && defined $p) {
-            $self->sWidthY($self->dWidthY * 1000 / $p * POINTS_PER_INCH / $ry);
-            printf STDERR ("matchSDWidths: computed sWidthY; setting to %s\n", $self->sWidthY);
-        }
-    }
 }
 
 sub fix {

@@ -153,33 +153,27 @@ sub resolution {
         my ($x, $y) = @_;
         $y //= $x;
         if (!defined $self->xResolution) {
-            warn("Parser: setting x resolution to $x\n");
             $self->xResolution($x);
         }
         if (!defined $self->yResolution) {
-            warn("Parser: setting y resolution to $y\n");
             $self->yResolution($y);
         }
     }
     if (defined $self->xResolution) {
-            if (!defined $self->font->xResolution) {
-                $self->font->xResolution($self->xResolution);
-                warn("Parser: set font x resolution to ", $self->font->xResolution, "\n");
-            }
-            if (!defined $self->font->xResolutionProperty) {
-                $self->font->xResolutionProperty($self->xResolution);
-                warn("Parser: set font x resolution property to ", $self->font->xResolutionProperty, "\n");
-            }
+        if (!defined $self->font->xResolution) {
+            $self->font->xResolution($self->xResolution);
+        }
+        if (!defined $self->font->xResolutionProperty) {
+            $self->font->xResolutionProperty($self->xResolution);
+        }
     }
     if (defined $self->yResolution) {
-            if (!defined $self->font->yResolution) {
-                $self->font->yResolution($self->yResolution);
-                warn("Parser: set font y resolution to ", $self->font->yResolution, "\n");
-            }
-            if (!defined $self->font->yResolutionProperty) {
-                $self->font->yResolutionProperty($self->yResolution);
-                warn("Parser: set font y resolution property to ", $self->font->yResolutionProperty, "\n");
-            }
+        if (!defined $self->font->yResolution) {
+            $self->font->yResolution($self->yResolution);
+        }
+        if (!defined $self->font->yResolutionProperty) {
+            $self->font->yResolutionProperty($self->yResolution);
+        }
     }
 }
 
@@ -199,14 +193,7 @@ sub parseLine {
     my ($self, $line) = @_;
     $self->lineNumber($self->lineNumber + 1);
     $line =~ s{\R\z}{};         # safer than chomp.
-
-    if ($self->verbose) {
-        printf("%-7d %s\n", $self->state, $line);
-    }
-
     if ($line =~ m{^\s*include\s+(?<filename>\S.*?)\s*$}xi) {
-        # include <filename>
-        #     at any point includes the contents of <filename>
         $self->include($+{filename});
     } elsif ($self->state == 0) {
         $self->parseLineState0($line);
@@ -250,7 +237,31 @@ sub include {
 #
 sub parseLineState0 {
     my ($self, $line) = @_;
-    if ($line =~ m{^\s* STARTFONT
+    if (0) {
+    } elsif ($self->enableExtensions && $line =~ m{^\s*#}) {
+        # comment; do nothing
+        return;
+    } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
+        $self->endChar();
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+                                                   name => $+{name}));
+        $self->font->appendGlyph($self->glyph);
+        $self->state(3);
+    } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*
+                        (?<startMarker>[+|])
+                        (?<data>[ *#]*?)
+                        (?<endMarker>[+|])?
+                        \s*$}xi) {
+        $self->state(4);
+        $self->glyph->appendBitmapData({
+            format      => 'pixels',
+            startMarker => $+{startMarker},
+            pixels      => $+{data},
+            endMarker   => $+{endMarker},
+        });
+    } elsif ($line =~ m{^\s* STARTFONT
                    \s+ (?<formatVersion>$RE{string}) \s*$}xi) {
         $self->font->formatVersion($1);
     } elsif ($line =~ m{^\s* COMMENT $RE{endWord}
@@ -274,7 +285,6 @@ sub parseLineState0 {
                         \s+ (?<height>$RE{real})
                         \s+ (?<offsetX>$RE{real})
                         \s+ (?<offsetY>$RE{real})}xi) {
-        printf STDERR ("parseLineState0: FONTBOUNDINGBOX %s %s %s %s\n", $+{width}, $+{height}, $+{offsetX}, $+{offsetY});
         $self->font->boundingBoxWidth($+{width});
         $self->font->boundingBoxHeight($+{height});
         $self->font->boundingBoxOffsetX($+{offsetX});
@@ -321,8 +331,8 @@ sub parseLineState0 {
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
-    } elsif ($line =~ m{^\s*#}) {
-        # do nothing
+    } else {
+        $self->puke($line);
     }
 }
 
@@ -331,17 +341,20 @@ sub parseLineState0 {
 #
 sub parseLineState1 {
     my ($self, $line) = @_;
-    printf STDERR ("BDF::Parser: line is '%s'\n", $line);
-    if ($line =~ m{^\s* ENDPROPERTIES $RE{endWord}}xi) {
+    if (0) {
+    } elsif ($self->enableExtensions && $line =~ m{^\s*#}) {
+        # comment; do nothing
+        return;
+    } elsif ($line =~ m{^\s* ENDPROPERTIES $RE{endWord}}xi) {
         $self->state(0);
     } elsif ($line =~ m{^\s* (?<name>$RE{word})
                         \s+ (?<value>$RE{string}) \s*$}xi) {
         $self->font->properties->append($+{name}, $+{value});
-        printf STDERR ("BDF::Parser: setting %s to %s\n", $+{name} // '(undef)', $+{value} // '(undef)');
-
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
+    } else {
+        $self->puke($line);
     }
 }
 
@@ -350,7 +363,18 @@ sub parseLineState1 {
 #
 sub parseLineState2 {
     my ($self, $line) = @_;
-    if ($line =~ m{^\s* STARTCHAR
+    if (0) {
+    } elsif ($self->enableExtensions && $line =~ m{^\s*#}) {
+        # comment; do nothing
+        return;
+    } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
+        $self->endChar();
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+                                                   name => $+{name}));
+        $self->font->appendGlyph($self->glyph);
+        $self->state(3);
+    } elsif ($line =~ m{^\s* STARTCHAR
                    \s+ (?<name>$RE{string}) \s*$}xi) {
         $self->endChar();
         $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
@@ -360,6 +384,8 @@ sub parseLineState2 {
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
+    } else {
+        $self->puke($line);
     }
 }
 
@@ -367,7 +393,31 @@ sub parseLineState2 {
 #
 sub parseLineState3 {
     my ($self, $line) = @_;
-    if ($line =~ m{^\s* ENCODING
+    if (0) {
+    } elsif ($self->enableExtensions && $line =~ m{^\s*#}) {
+        # comment; do nothing
+        return;
+    } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
+        $self->endChar();
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+                                                   name => $+{name}));
+        $self->font->appendGlyph($self->glyph);
+        $self->state(3);
+    } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*
+                        (?<startMarker>[+|])
+                        (?<data>[ *#]*?)
+                        (?<endMarker>[+|])?
+                        \s*$}xi) {
+        $self->glyph->appendBitmapData({
+            format      => 'pixels',
+            startMarker => $+{startMarker},
+            pixels      => $+{data},
+            endMarker   => $+{endMarker},
+        });
+        $self->state(4);
+    } elsif ($line =~ m{^\s* ENCODING
                    \s+ (?<encoding>$RE{real})
                    (?: \s+ (?<nonStandardEncoding>$RE{real}) )?}xi) {
         $self->glyph->encoding($+{encoding});
@@ -416,19 +466,8 @@ sub parseLineState3 {
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
-    } elsif ($self->enableExtensions &&
-             $line =~ m{^\s*
-                        (?<startMarker>[+|])
-                        (?<data>[ *#]*?)
-                        (?<endMarker>[+|])?
-                        \s*$}xi) {
-        $self->glyph->appendBitmapData({
-            format      => 'pixels',
-            startMarker => $+{startMarker},
-            pixels      => $+{data},
-            endMarker   => $+{endMarker},
-        });
-        $self->state(4);
+    } else {
+        $self->puke($line);
     }
 }
 
@@ -436,17 +475,10 @@ sub parseLineState3 {
 #
 sub parseLineState4 {
     my ($self, $line) = @_;
-    if ($line =~ m{^\s* ENDCHAR $RE{endWord}}xi) {
-        $self->endChar();
-        $self->state(2);
-    } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
-        $self->endFont();
-        $self->state(-1);
-    } elsif ($line =~ m{^\s* (?<data>[A-Za-z0-9]+)}xi) {
-        $self->glyph->appendBitmapData({
-            format => 'hex',
-            hex    => $+{data}
-        });
+    if (0) {
+    } elsif ($self->enableExtensions && $line =~ m{^\s*#}) {
+        # comment; do nothing
+        return;
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
                         \|
@@ -455,6 +487,13 @@ sub parseLineState4 {
                         \s*$}xi) {
         $self->glyph->negativeLeftOffset(length($+{negativeLeftOffset}));
     } elsif ($self->enableExtensions &&
+             $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
+        $self->endChar();
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+                                                   name => $+{name}));
+        $self->font->appendGlyph($self->glyph);
+        $self->state(3);
+    } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
                         (?<startMarker>[+|])
                         (?<data>[ *#]*?)
@@ -466,6 +505,19 @@ sub parseLineState4 {
             pixels      => $+{data},
             endMarker   => $+{endMarker},
         });
+    } elsif ($line =~ m{^\s* ENDCHAR $RE{endWord}}xi) {
+        $self->endChar();
+        $self->state(2);
+    } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
+        $self->endFont();
+        $self->state(-1);
+    } elsif ($line =~ m{^\s* (?<data>[0-9A-Fa-f]+)}xi) {
+        $self->glyph->appendBitmapData({
+            format => 'hex',
+            hex    => $+{data}
+        });
+    } else {
+        $self->puke($line);
     }
 }
 
@@ -478,7 +530,6 @@ sub endChar {
 
 sub endFont {
     my ($self) = @_;
-    warn("Parser::endFont: I'm running\n");
     $self->endChar();
     $self->font->filename($self->filename);
     $self->font->finalize();
@@ -500,9 +551,17 @@ sub endFont {
     }
 }
 
+sub puke {
+    my ($self, $line) = @_;
+    warn(sprintf("[ERROR] I CANNOT EVEN: %s state %d line [%s]\n",
+                 $self->filename,
+                 $self->state,
+                 $line));
+    exit(1);
+}
+
 sub eof {
     my ($self) = @_;
-    warn("Parser::eof: I'm running\n");
     $self->endFont();
 }
 
