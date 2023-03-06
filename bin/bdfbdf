@@ -40,7 +40,6 @@ use Font::Bitmap::BDF::Parser;
 #------------------------------------------------------------------------------
 my $parser = Font::Bitmap::BDF::Parser->new();
 $parser->verbose($verbose);
-warn(sprintf("bdfbdf: guessing? %s\n", ($guess ? "yes" : "no")));
 $parser->font->guess($guess);
 
 if (defined $resolutionX && defined $resolutionY) {
@@ -53,7 +52,6 @@ while (<>) {
     $parser->filename($ARGV) if !defined $parser->filename;
     $parser->parseLine($_);
 }
-warn("EOF\n");
 $parser->eof();
 
 print $parser->font->toString();
