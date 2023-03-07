@@ -20,6 +20,18 @@ has font => (is => 'rw');
 
 use Scalar::Util qw(looks_like_number);
 
+sub from {
+    my ($class, $from) = @_;
+    my $new = $class->new();
+    $new->{propertyList} = [ @{$from->{propertyList}} ];
+    $new->{propertyHash} = { %{$from->{propertyHash}} };
+    $new->{propertyArrays} = {};
+    foreach my $key (keys %{$from->{propertyArrays}}) {
+        $new->{propertyArrays}->{$key} = [ @{$from->{propertyArrays}->{$key}} ];
+    }
+    return $new;
+}
+
 # $props->append($name, $value);
 sub append {
     my ($self, $name, $value) = @_;

@@ -147,34 +147,21 @@ has verbose => (is => 'rw', default => 0);
 
 has xResolution => (is => 'rw');
 has yResolution => (is => 'rw');
+
+# sets x resolution and y resolution properties, used by cmdline
+# utility
 sub resolution {
-    my $self = shift;
-    if (scalar @_) {
-        my ($x, $y) = @_;
-        $y //= $x;
-        if (!defined $self->xResolution) {
-            $self->xResolution($x);
-        }
-        if (!defined $self->yResolution) {
-            $self->yResolution($y);
-        }
+    my ($self, $xres, $yres) = @_;
+    if (!defined $xres) {
+        die("resolution method only sets resolution");
     }
-    if (defined $self->xResolution) {
-        if (!defined $self->font->xResolution) {
-            $self->font->xResolution($self->xResolution);
-        }
-        if (!defined $self->font->xResolutionProperty) {
-            $self->font->xResolutionProperty($self->xResolution);
-        }
-    }
-    if (defined $self->yResolution) {
-        if (!defined $self->font->yResolution) {
-            $self->font->yResolution($self->yResolution);
-        }
-        if (!defined $self->font->yResolutionProperty) {
-            $self->font->yResolutionProperty($self->yResolution);
-        }
-    }
+    $yres //= $xres;
+    $self->{xResolution} //= $xres;
+    $self->{yResolution} //= $yres;
+    $self->{font}->{xResolution} //= $self->{xResolution};
+    $self->{font}->{yResolution} //= $self->{yResolution};
+    $self->{font}->{xResolutionProperty} //= $self->{xResolution};
+    $self->{font}->{yResolutionProperty} //= $self->{yResolution};
 }
 
 our %RE;
@@ -245,9 +232,9 @@ sub parseLineState0 {
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
         $self->endChar();
-        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->{font},
                                                    name => $+{name}));
-        $self->font->appendGlyph($self->glyph);
+        $self->{font}->appendGlyph($self->glyph);
         $self->state(3);
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
@@ -264,60 +251,60 @@ sub parseLineState0 {
         });
     } elsif ($line =~ m{^\s* STARTFONT
                    \s+ (?<formatVersion>$RE{string}) \s*$}xi) {
-        $self->font->formatVersion($1);
+        $self->{font}->{formatVersion} = $1;
     } elsif ($line =~ m{^\s* COMMENT $RE{endWord}
                         (?<comment>.*)$}xi) {
-        $self->font->appendComment($+{comment} // '');
+        $self->{font}->appendComment($+{comment} // '');
     } elsif ($line =~ m{^\s* CONTENTVERSION
                         \s+ (?<contentVersion>$RE{real})}xi) {
-        $self->font->contentVersion($+{contentVersion});
+        $self->{font}->{contentVersion} = $+{contentVersion};
     } elsif ($line =~ m{^\s* FONT
                         \s+ (?<fontName>$RE{string}) \s*$}xi) {
-        $self->font->name($+{fontName});
+        $self->{font}->{name} = ($+{fontName});
     } elsif ($line =~ m{^\s* SIZE
                         \s+ (?<pointSize>$RE{real})
                         \s+ (?<xResolution>$RE{real})
                         \s+ (?<yResolution>$RE{real})}xi) {
-        $self->font->pointSize($+{pointSize});
-        $self->font->xResolution($+{xResolution});
-        $self->font->yResolution($+{yResolution});
+        $self->{font}->{pointSize} = $+{pointSize};
+        $self->{font}->{xResolution} = $+{xResolution};
+        $self->{font}->{yResolution} = $+{yResolution};
     } elsif ($line =~ m{^\s* FONTBOUNDINGBOX
                         \s+ (?<width>$RE{real})
                         \s+ (?<height>$RE{real})
                         \s+ (?<offsetX>$RE{real})
                         \s+ (?<offsetY>$RE{real})}xi) {
-        $self->font->boundingBoxWidth($+{width});
-        $self->font->boundingBoxHeight($+{height});
-        $self->font->boundingBoxOffsetX($+{offsetX});
-        $self->font->boundingBoxOffsetY($+{offsetY});
+        $self->{font}->{boundingBoxWidth} = $+{width};
+        $self->{font}->{boundingBoxHeight} = $+{height};
+        $self->{font}->{boundingBoxOffsetX} = $+{offsetX};
+        $self->{font}->{boundingBoxOffsetY} = $+{offsetY};
     } elsif ($line =~ m{^\s* METRICSSET
                         \s+ (?<metricsSet>$RE{real})}xi) {
-        $self->font->metricsSet($+{metricsSet});
+        $self->{font}->{metricsSet} = $+{metricsSet};
     } elsif ($line =~ m{^\s* SWIDTH
                         \s+ (?<x>$RE{real})
                         \s+ (?<y>$RE{real})}xi) {
-        $self->font->sWidthX($+{x});
-        $self->font->sWidthY($+{y});
+        $self->{font}->{sWidthX} = $+{x};
+        $self->{font}->{sWidthY} = $+{y};
     } elsif ($line =~ m{^\s* DWIDTH
                         \s+ (?<x>$RE{real})
                         \s+ (?<y>$RE{real})}xi) {
-        $self->font->dWidthX($+{x});
-        $self->font->dWidthY($+{y});
+        $self->{font}->{dWidthX} = $+{x};
+        $self->{font}->{dWidthY} = $+{y};
     } elsif ($line =~ m{^\s* SWIDTH1
                         \s+ (?<x>$RE{real})
                         \s+ (?<y>$RE{real})}xi) {
-        $self->font->sWidth1X($+{x});
-        $self->font->sWidth1Y($+{y});
+        $self->{font}->{sWidth1X} = $+{x};
+        $self->{font}->{sWidth1Y} = $+{y};
     } elsif ($line =~ m{^\s* DWIDTH1
                         \s+ (?<x>$RE{real})
                         \s+ (?<y>$RE{real})}xi) {
-        $self->font->dWidth1X($+{x});
-        $self->font->dWidth1Y($+{y});
+        $self->{font}->{dWidth1X} = $+{x};
+        $self->{font}->{dWidth1Y} = $+{y};
     } elsif ($line =~ m{^\s* VVECTOR
                         \s+ (?<x>$RE{real})
                         \s+ (?<y>$RE{real})}xi) {
-        $self->font->vVectorX($+{x});
-        $self->font->vVectorY($+{y});
+        $self->{font}->{vVectorX} = $+{x};
+        $self->{font}->{vVectorY} = $+{y};
     } elsif ($line =~ m{^\s* STARTPROPERTIES $RE{endWord}}xi) {
         $self->state(1);
     } elsif ($line =~ m{^\s* CHARS $RE{endWord}}xi) {
@@ -325,9 +312,9 @@ sub parseLineState0 {
     } elsif ($line =~ m{^\s* STARTCHAR
                         \s+ (?<name>$RE{string}) \s*$}xi) {
         $self->endChar();
-        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->{font},
                                                    name => $+{name}));
-        $self->font->appendGlyph($self->glyph);
+        $self->{font}->appendGlyph($self->glyph);
         $self->state(3);
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
@@ -350,7 +337,7 @@ sub parseLineState1 {
         $self->state(0);
     } elsif ($line =~ m{^\s* (?<name>$RE{word})
                         \s+ (?<value>$RE{string}) \s*$}xi) {
-        $self->font->properties->append($+{name}, $+{value});
+        $self->{font}->properties->append($+{name}, $+{value});
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
         $self->state(-1);
@@ -371,16 +358,16 @@ sub parseLineState2 {
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
         $self->endChar();
-        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->{font},
                                                    name => $+{name}));
-        $self->font->appendGlyph($self->glyph);
+        $self->{font}->appendGlyph($self->glyph);
         $self->state(3);
     } elsif ($line =~ m{^\s* STARTCHAR
                    \s+ (?<name>$RE{string}) \s*$}xi) {
         $self->endChar();
-        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->{font},
                                                    name => $+{name}));
-        $self->font->appendGlyph($self->glyph);
+        $self->{font}->appendGlyph($self->glyph);
         $self->state(3);
     } elsif ($line =~ m{^\s* ENDFONT $RE{endWord}}xi) {
         $self->endFont();
@@ -401,9 +388,9 @@ sub parseLineState3 {
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
         $self->endChar();
-        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->{font},
                                                    name => $+{name}));
-        $self->font->appendGlyph($self->glyph);
+        $self->{font}->appendGlyph($self->glyph);
         $self->state(3);
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
@@ -490,9 +477,9 @@ sub parseLineState4 {
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*(?<name>(?:U\+|0x)(?<codepoint>[[:xdigit:]]+))}xi) {
         $self->endChar();
-        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->font,
+        $self->glyph(Font::Bitmap::BDF::Glyph->new(font => $self->{font},
                                                    name => $+{name}));
-        $self->font->appendGlyph($self->glyph);
+        $self->{font}->appendGlyph($self->glyph);
         $self->state(3);
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
@@ -532,7 +519,7 @@ sub endChar {
 sub endFont {
     my ($self) = @_;
     $self->endChar();
-    $self->font->filename($self->filename);
+    $self->{font}->filename($self->filename);
 }
 
 sub puke {

@@ -66,7 +66,7 @@ sub finalize {
     $self->finalizeHex();
     $self->finalizeIndexes();
     $self->finalizeBoundingBox();
-    $self->finalizeWidth();
+    # $self->finalizeWidth();
     $self->finalizeHeight();
     $self->finalizeEncoding();
 }
@@ -97,7 +97,6 @@ sub finalizeHex {
             my $pixels = $data->{pixels};
             my $hex = $data->{hex};
             if (defined $pixels && !defined $hex) {
-                # printf STDERR ("[DEBUG] pixels are {%s}\n", $pixels);
                 if ($pixels eq '') {
                     $pixels = ' '; # best effort
                 }
@@ -210,7 +209,6 @@ sub trimEmptyColumnsFromLeft {
         }
         $self->boundingBoxOffsetX($self->boundingBoxOffsetX + $shift);
         $self->boundingBoxWidth($self->boundingBoxWidth - $shift);
-        printf STDERR ("finalizeBoundingBox: [2] set boundingBoxWidth to %s\n", $self->boundingBoxWidth);
     }
 }
 
@@ -224,7 +222,6 @@ sub trimEmptyColumnsFromRight {
         $data->{bin} .= '0' x ($length - length($data->{bin}));
     }
     $self->boundingBoxWidth($length);
-    printf STDERR ("finalizeBoundingBox: [3] set boundingBoxWidth to %s\n", $self->boundingBoxWidth);
 }
 
 sub finalizeWidth {
@@ -287,11 +284,13 @@ sub toString {
                            round($self->boundingBoxOffsetX // 0),
                            round($self->boundingBoxOffsetY // 0));
     }
-    if (defined $self->sWidthX && defined $self->sWidthY) {
-        $result .= sprintf("SWIDTH %d %d\n", round($self->sWidthX), round($self->sWidthY));
+    my $swx = $self->computeSWidthX();
+    my $dwx = $self->computeDWidthX();
+    if (defined $swx && defined $self->sWidthY) {
+        $result .= sprintf("SWIDTH %d %d\n", round($swx), round($self->sWidthY));
     }
-    if (defined $self->dWidthX && defined $self->dWidthY) {
-        $result .= sprintf("DWIDTH %d %d\n", round($self->dWidthX), round($self->dWidthY));
+    if (defined $dwx && defined $self->dWidthY) {
+        $result .= sprintf("DWIDTH %d %d\n", round($dwx), round($self->dWidthY));
     }
     if (defined $self->sWidth1X && defined $self->sWidth1Y) {
         $result .= sprintf("SWIDTH1 %d %d\n", round($self->sWidth1X), round($self->sWidth1Y));
@@ -310,6 +309,56 @@ sub toString {
     }
     $result .= "ENDCHAR\n";
     return $result;
+}
+
+sub computeSWidthX {
+    my ($self) = @_;
+    my $sw = $self->sWidthX;
+    my $dw = $self->dWidthX;                      # 7
+    my $pt = $self->font->computePointSize();     # 12
+    my $xres = $self->font->computeXResolution(); # 210
+    my $yres = $self->font->computeYResolution(); # 96
+    my $bbw = $self->boundingBoxWidth;            # 7
+    my $bbx = $self->boundingBoxOffsetX;          # 0
+    if (defined $sw) {
+        printf STDERR ("[DEBUG] swidth is defined as $sw\n");
+        return $sw;
+    }
+    if (defined $dw) {
+        my $sw = round($dw / $xres * POINTS_PER_INCH / $pt/10 * 1000) if defined $dw;
+        printf STDERR ("[DEBUG] dw = %s; xres = %s; 72 ppi; fontsize = %s => swidth = %s\n", $dw, $xres, $pt, $sw);
+        return $sw;
+    }
+    if (defined $bbw && defined $bbx) {
+        my $dw = $bbw + $bbx;
+        if (defined $dw) {
+            my $sw = round($dw / $xres * POINTS_PER_INCH / $pt/10 * 1000);
+            printf STDERR ("[DEBUG] dw = %s; xres = %s; 72 ppi; fontsize = %s => swidth = %s\n", $dw, $xres, $pt, $sw);
+            return $sw;
+        }
+    }
+    return;
+}
+
+# if dwidth = 7 pixels
+# we need to compute the swidth - in terms of thousandths of the vertical font size or units of 12/1000 pt
+#    width of each character = 7 / 105 = 1/15 inch
+#    or 72/15 points = 4.8 points
+#    4.8pt / 12pt = 0.4em
+#    * .4em * 1000/em = 400
+
+sub computeDWidthX {
+    my ($self) = @_;
+    my $sw = $self->sWidthX;
+    my $dw = $self->dWidthX;
+    my $pt = $self->font->computePointSize();
+    my $xres = $self->font->computeXResolution();
+    my $bbw = $self->boundingBoxWidth;
+    my $bbx = $self->boundingBoxOffsetX;
+    return $dw if defined $dw;
+    return round($sw * $pt / 1000 * $xres / POINTS_PER_INCH) if defined $sw;
+    return $bbw + $bbx if (defined $bbw && defined $bbx);
+    return;
 }
 
 sub fix {
