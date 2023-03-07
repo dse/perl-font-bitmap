@@ -55,5 +55,6 @@ while (<>) {
     $parser->parseLine($_);
 }
 $parser->eof();
+$parser->font->finalize();
 
 print $parser->font->toString();

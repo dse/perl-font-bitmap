@@ -208,6 +208,7 @@ sub parseLine {
     }
 }
 
+
 sub include {
     my ($self, $filename) = @_;
     my $fh;
@@ -532,23 +533,6 @@ sub endFont {
     my ($self) = @_;
     $self->endChar();
     $self->font->filename($self->filename);
-    $self->font->finalize();
-    if (!defined $self->font->xResolution) {
-        if (defined $self->xResolution) {
-            $self->font->xResolution($self->xResolution);
-        }
-        if (defined $self->xResolutionProperty) {
-            $self->font->xResolutionProperty($self->xResolution);
-        }
-    }
-    if (!defined $self->font->yResolution) {
-        if (defined $self->yResolution) {
-            $self->font->yResolution($self->yResolution);
-        }
-        if (defined $self->yResolutionProperty) {
-            $self->font->yResolutionProperty($self->yResolution);
-        }
-    }
 }
 
 sub puke {
