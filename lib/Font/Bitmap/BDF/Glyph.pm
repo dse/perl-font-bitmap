@@ -325,14 +325,14 @@ sub computeSWidthX {
         return $sw;
     }
     if (defined $dw) {
-        my $sw = round($dw / $xres * POINTS_PER_INCH / $pt/10 * 1000) if defined $dw;
+        my $sw = round($dw / $xres * POINTS_PER_INCH / ($pt/10) * 1000) if defined $dw;
         printf STDERR ("[DEBUG] dw = %s; xres = %s; 72 ppi; fontsize = %s => swidth = %s\n", $dw, $xres, $pt, $sw);
         return $sw;
     }
     if (defined $bbw && defined $bbx) {
         my $dw = $bbw + $bbx;
         if (defined $dw) {
-            my $sw = round($dw / $xres * POINTS_PER_INCH / $pt/10 * 1000);
+            my $sw = round($dw / $xres * POINTS_PER_INCH / ($pt/10) * 1000);
             printf STDERR ("[DEBUG] dw = %s; xres = %s; 72 ppi; fontsize = %s => swidth = %s\n", $dw, $xres, $pt, $sw);
             return $sw;
         }
