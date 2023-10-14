@@ -532,4 +532,11 @@ sub computePropertyValue {
     return $defaultValue;
 }
 
+sub doubleStrike {
+    my ($self) = @_;
+    foreach my $glyph (@{$self->glyphs}) {
+        $glyph->doubleStrike();
+    }
+}
+
 1;

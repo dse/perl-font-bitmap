@@ -366,4 +366,33 @@ sub fix {
     # placeholder
 }
 
+sub doubleStrike {
+    my ($self) = @_;
+    foreach my $data (@{$self->bitmapData}) {
+        my $hex = $data->{hex};
+        my $pixels = $data->{pixels};
+        if (defined $hex) {     # [0-9A-Fa-f]...
+            my @hex = map { hex($_) } split('', $hex);
+            my @newHex = @hex;
+            for (my $i = 0; $i < scalar @hex; $i += 1) {
+                $newHex[$i] |= ($hex[$i] >> 1);
+                if ($i) {
+                    $newHex[$i] |= (($hex[$i - 1] & 1) << 3);
+                }
+            }
+            $data->{hex} = join('', map { sprintf('%01X', $_) } @newHex);
+        }
+        if (defined $pixels) {
+            my @pixels = split('', $pixels);
+            my @newPixels = @pixels;
+            for (my $i = 0; $i < scalar @pixels; $i += 1) {
+                if ($i) {
+                    $newPixels[$i] |= $pixels[$i - 1];
+                }
+            }
+            $data->{pixels} = join('', map { $_ ? '1' : '0' } @newPixels);
+        }
+    }
+}
+
 1;

@@ -14,6 +14,8 @@ our $guess = 0;
 our $resolutionX;
 our $resolutionY;
 our $verbose = 0;
+our $doubleStrike;
+our $weightName;
 
 use Getopt::Long;
 Getopt::Long::Configure('bundling', 'gnu_compat', 'no_ignore_case');
@@ -24,6 +26,8 @@ Getopt::Long::GetOptions(
     'r|resolution=f'   => sub { $resolutionX = $resolutionY = $_[1]; },
     'x|resolution-x=f' => \$resolutionX,
     'y|resolution-y=f' => \$resolutionY,
+    'd|double-strike'  => \$doubleStrike,
+    'w|weight=s'       => \$weightName,
 ) or die("Type '$PROGNAME --help' for help.\n");
 
 sub usage { print(<<"END"); }
@@ -35,6 +39,8 @@ options:
     -r, --resolution=<float>        nominally, DPI
     -x, --resolution-x=<float>
     -y, --resolution-y=<float>
+    -d, --double-strike
+    -w, --weight=WEIGHTNAME
 END
 
 use Font::Bitmap::BDF::Parser;
@@ -56,5 +62,8 @@ while (<>) {
 }
 $parser->eof();
 $parser->font->finalize();
+
+$parser->font->doubleStrike() if $doubleStrike;
+$parser->font->properties->{WEIGHT_NAME} = $weightName if defined $weightName;
 
 print $parser->font->toString();
