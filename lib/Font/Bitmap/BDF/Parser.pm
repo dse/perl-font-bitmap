@@ -238,15 +238,17 @@ sub parseLineState0 {
         $self->state(3);
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
-                        (?<startMarker>[+|])
+                        (?<startMarker>[+|^])
                         (?<data>[ *#]*?)
-                        (?<endMarker>[+|])?
+                        (?<endMarker>[+|^])?
                         \s*$}xi) {
+        my $data = $+{data};
+        $data =~ s{.}{($& eq '.' || $& eq ' ') ? ' ' : '#'}ge;
         $self->state(4);
         $self->glyph->appendBitmapData({
             format      => 'pixels',
             startMarker => $+{startMarker},
-            pixels      => $+{data},
+            pixels      => $data,
             endMarker   => $+{endMarker},
         });
     } elsif ($line =~ m{^\s* STARTFONT
@@ -394,14 +396,16 @@ sub parseLineState3 {
         $self->state(3);
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
-                        (?<startMarker>[+|])
+                        (?<startMarker>[+|^])
                         (?<data>[ *#]*?)
-                        (?<endMarker>[+|])?
+                        (?<endMarker>[+|^])?
                         \s*$}xi) {
+        my $data = $+{data};
+        $data =~ s{.}{($& eq '.' || $& eq ' ') ? ' ' : '#'}ge;
         $self->glyph->appendBitmapData({
             format      => 'pixels',
             startMarker => $+{startMarker},
-            pixels      => $+{data},
+            pixels      => $data,
             endMarker   => $+{endMarker},
         });
         $self->state(4);
@@ -483,14 +487,16 @@ sub parseLineState4 {
         $self->state(3);
     } elsif ($self->enableExtensions &&
              $line =~ m{^\s*
-                        (?<startMarker>[+|])
+                        (?<startMarker>[+|^])
                         (?<data>[ *#]*?)
-                        (?<endMarker>[+|])?
+                        (?<endMarker>[+|^])?
                         \s*$}xi) {
+        my $data = $+{data};
+        $data =~ s{.}{($& eq '.' || $& eq ' ') ? ' ' : '#'}ge;
         $self->glyph->appendBitmapData({
             format      => 'pixels',
             startMarker => $+{startMarker},
-            pixels      => $+{data},
+            pixels      => $data,
             endMarker   => $+{endMarker},
         });
     } elsif ($line =~ m{^\s* ENDCHAR $RE{endWord}}xi) {
